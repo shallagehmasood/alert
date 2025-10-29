@@ -12,9 +12,7 @@ class ApiService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-    } catch (e) {
-      // ignore and return defaults
-    }
+    } catch (_) {}
     return {
       'timeframes': {},
       'modes': {},
@@ -29,17 +27,17 @@ class ApiService {
       'modes': data['modes'] ?? {},
       'sessions': data['sessions'] ?? {},
     };
-    final body = jsonEncode(payload);
     final uri = Uri.parse('$_baseUrl/settings');
     try {
       final response = await http
-          .post(uri, headers: {'Content-Type': 'application/json'}, body: body)
+          .post(uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(payload))
           .timeout(const Duration(seconds: 6));
       if (response.statusCode != 200) {
         throw Exception('Save failed: ${response.statusCode}');
       }
     } catch (e) {
-      // rethrow so caller can show toast or handle offline save
       rethrow;
     }
   }
@@ -53,9 +51,7 @@ class ApiService {
         final body = jsonDecode(response.body);
         return List<dynamic>.from(body['alerts'] ?? []);
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (_) {}
     return [];
   }
 
