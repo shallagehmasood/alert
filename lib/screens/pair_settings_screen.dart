@@ -1,6 +1,6 @@
 
 ### lib/screens/pair_settings_screen.dart
-```dart
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
