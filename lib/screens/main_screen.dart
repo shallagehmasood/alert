@@ -12,10 +12,10 @@ import '../widgets/timeframe_bottom_sheet.dart';
 import 'pair_settings_screen.dart';
 
 const List<String> PAIRS = [
-  "EURUSD","GBPUSD","USDJPY","USDCHF",
-  "AUDUSD","AUDJPY","CADJPY","EURJPY","BTCUSD",
-  "USDCAD","GBPJPY","ADAUSD","BRENT","XAUUSD","XAGUSD",
-  "ETHUSD","DowJones30","Nasdaq100"
+  "EURUSD", "GBPUSD", "USDJPY", "USDCHF",
+  "AUDUSD", "AUDJPY", "CADJPY", "EURJPY", "BTCUSD",
+  "USDCAD", "GBPJPY", "ADAUSD", "BRENT", "XAUUSD", "XAGUSD",
+  "ETHUSD", "DowJones30", "Nasdaq100"
 ];
 
 class MainScreen extends StatefulWidget {
@@ -83,10 +83,8 @@ class _MainScreenState extends State<MainScreen> {
       'modes': _modes,
       'sessions': _sessions,
     };
-    // save local
     await LocalStorage.saveSettings(widget.userId, payload);
 
-    // try server
     try {
       await _api.saveSettings(widget.userId, payload);
       Fluttertoast.showToast(msg: 'تنظیمات ذخیره شد');
@@ -127,6 +125,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // Open mode sheet (widget)
   void _openModesSheet() {
+    print("دکمه مود فشرده شده است!");
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -134,7 +133,9 @@ class _MainScreenState extends State<MainScreen> {
         return ModeBottomSheet(
           initial: _modes,
           onSave: (result) async {
-            _modes = {for (var e in result.entries) e.key: e.value};
+            setState(() {
+              _modes = {for (var e in result.entries) e.key: e.value};
+            });
             await _saveSettings();
           },
         );
@@ -144,6 +145,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // Open session sheet (widget)
   void _openSessionsSheet() {
+    print("دکمه سشن فشرده شده است!");
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -151,7 +153,9 @@ class _MainScreenState extends State<MainScreen> {
         return SessionBottomSheet(
           initial: _sessions,
           onSave: (result) async {
-            _sessions = {for (var e in result.entries) e.key: e.value};
+            setState(() {
+              _sessions = {for (var e in result.entries) e.key: e.value};
+            });
             await _saveSettings();
           },
         );
@@ -169,7 +173,9 @@ class _MainScreenState extends State<MainScreen> {
         return TimeframeBottomSheet(
           initialPairData: initialPair,
           onSave: (pairData) async {
-            _timeframes[pair] = pairData;
+            setState(() {
+              _timeframes[pair] = pairData;
+            });
             await _saveSettings();
           },
         );
@@ -246,7 +252,6 @@ class _MainScreenState extends State<MainScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
                     onPressed: () async {
-                      // open timeframe bottom sheet for this pair
                       _openTimeframeForPair(pair);
                     },
                     child: Text(pair, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
