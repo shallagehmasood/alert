@@ -61,19 +61,21 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final server = await _api.getSettings(widget.userId);
-      setState(() {
-        _timeframes = Map<String, dynamic>.from(server['timeframes'] ?? _timeframes);
-        _modes = Map<String, bool>.from((server['modes'] ?? _modes).map((k, v) => MapEntry(k as String, v == true)));
-        _sessions = Map<String, bool>.from((server['sessions'] ?? _sessions).map((k, v) => MapEntry(k as String, v == true)));
-        _loadingSettings = false;
-      });
+      if (mounted) {
+        setState(() {
+          _timeframes = Map<String, dynamic>.from(server['timeframes'] ?? _timeframes);
+          _modes = Map<String, bool>.from((server['modes'] ?? _modes).map((k, v) => MapEntry(k as String, v == true)));
+          _sessions = Map<String, bool>.from((server['sessions'] ?? _sessions).map((k, v) => MapEntry(k as String, v == true)));
+          _loadingSettings = false;
+        });
+      }
       await LocalStorage.saveSettings(widget.userId, {
         'timeframes': _timeframes,
         'modes': _modes,
         'sessions': _sessions,
       });
     } catch (_) {
-      setState(() => _loadingSettings = false);
+      if (mounted) setState(() => _loadingSettings = false);
     }
   }
 
@@ -91,7 +93,9 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {
       Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین?)');
     }
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _startAlertsPolling() async {
@@ -126,6 +130,7 @@ class _MainScreenState extends State<MainScreen> {
   // Open mode sheet (widget)
   void _openModesSheet() {
     print("دکمه مود فشرده شده است!");
+    if (!mounted) return;  // Ensure context is valid
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -133,10 +138,12 @@ class _MainScreenState extends State<MainScreen> {
         return ModeBottomSheet(
           initial: _modes,
           onSave: (result) async {
-            setState(() {
-              _modes = {for (var e in result.entries) e.key: e.value};
-            });
-            await _saveSettings();
+            if (mounted) {
+              setState(() {
+                _modes = {for (var e in result.entries) e.key: e.value};
+              });
+              await _saveSettings();
+            }
           },
         );
       },
@@ -146,6 +153,7 @@ class _MainScreenState extends State<MainScreen> {
   // Open session sheet (widget)
   void _openSessionsSheet() {
     print("دکمه سشن فشرده شده است!");
+    if (!mounted) return;  // Ensure context is valid
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -153,10 +161,12 @@ class _MainScreenState extends State<MainScreen> {
         return SessionBottomSheet(
           initial: _sessions,
           onSave: (result) async {
-            setState(() {
-              _sessions = {for (var e in result.entries) e.key: e.value};
-            });
-            await _saveSettings();
+            if (mounted) {
+              setState(() {
+                _sessions = {for (var e in result.entries) e.key: e.value};
+              });
+              await _saveSettings();
+            }
           },
         );
       },
@@ -166,6 +176,7 @@ class _MainScreenState extends State<MainScreen> {
   // Open timeframe sheet for a pair (widget)
   void _openTimeframeForPair(String pair) {
     final initialPair = Map<String, dynamic>.from(_timeframes[pair] ?? {'signal': 'BUYSELL'});
+    if (!mounted) return;  // Ensure context is valid
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -173,10 +184,12 @@ class _MainScreenState extends State<MainScreen> {
         return TimeframeBottomSheet(
           initialPairData: initialPair,
           onSave: (pairData) async {
-            setState(() {
-              _timeframes[pair] = pairData;
-            });
-            await _saveSettings();
+            if (mounted) {
+              setState(() {
+                _timeframes[pair] = pairData;
+              });
+              await _saveSettings();
+            }
           },
         );
       },
@@ -248,13 +261,10 @@ class _MainScreenState extends State<MainScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: active ? Colors.green.shade600 : Colors.white,
                       foregroundColor: active ? Colors.white : Colors.black,
-                      padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
-                    onPressed: () async {
-                      _openTimeframeForPair(pair);
-                    },
-                    child: Text(pair, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                    onPressed: () => _openTimeframeForPair(pair),
+                    child: Text(pair, textAlign: TextAlign.center),
                   );
                 },
               ),
@@ -265,94 +275,23 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildDivider() => const Divider(height: 1, thickness: 1);
-
-  Widget _buildAlertsArea(BoxConstraints constraints) {
-    final bottomHeight = constraints.maxHeight * 0.5;
-    if (_loadingAlerts && _alerts.isEmpty) {
-      return SizedBox(height: bottomHeight, child: const Center(child: CircularProgressIndicator()));
-    }
-    if (_alerts.isEmpty) {
-      return SizedBox(height: bottomHeight, child: const Center(child: Text('سیگنالی دریافت نشده است.')));
-    }
-
-    return SizedBox(
-      height: bottomHeight,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(8),
-        itemCount: _alerts.length,
-        itemBuilder: (context, index) {
-          final alert = _alerts[index];
-          final caption = alert['caption'] as String? ?? '';
-          final filename = alert['filename'] as String? ?? '';
-
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("تنظیمات"),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.network(
-                  _api.getImageUrl(filename),
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(child: CircularProgressIndicator());
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SelectableText(
-                        caption.replaceAll('<code>', '').replaceAll('</code>', ''),
-                        style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              final codeMatch = RegExp(r'<code>(.*?)</code>').firstMatch(caption);
-                              if (codeMatch != null) {
-                                final copy = codeMatch.group(1)!;
-                                Clipboard.setData(ClipboardData(text: copy));
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کپی شد!')));
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متنی برای کپی موجود نیست')));
-                              }
-                            },
-                            child: const Text('کپی متن'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                _buildTopArea(constraints),
+                // Add other sections if needed
               ],
             ),
           );
         },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Alert_X')),
-        body: LayoutBuilder(builder: (context, constraints) {
-          return Column(
-            children: [
-              _buildTopArea(constraints),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0), child: _buildDivider()),
-              Expanded(child: _buildAlertsArea(constraints)),
-            ],
-          );
-        }),
       ),
     );
   }
