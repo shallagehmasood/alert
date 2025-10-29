@@ -1,13 +1,13 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android") // ← جایگزین kotlin-android (قدیمی)
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "ir.masoodfx.alertx"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973" // ← برای رفع خطای NDK
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "ir.masoodfx.alertx" // ← منحصربه‌فرد و حرفه‌ای
+        applicationId = "ir.masoodfx.alertx"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
