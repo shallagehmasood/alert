@@ -5,6 +5,7 @@ import 'screens/main_screen.dart';
 const String FIXED_USER_ID = "123456789"; // ← اینجا شناسه واقعی خودت را بگذار
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -20,10 +21,6 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: Colors.black),
-          titleLarge: TextStyle(color: Colors.black),
-        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
