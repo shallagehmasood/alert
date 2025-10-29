@@ -1,10 +1,8 @@
-
-### lib/screens/main_screen.dart
-
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
@@ -12,24 +10,10 @@ import '../services/api_service.dart';
 import 'pair_settings_screen.dart';
 
 const List<String> PAIRS = [
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "USDCHF",
-  "AUDUSD",
-  "AUDJPY",
-  "CADJPY",
-  "EURJPY",
-  "BTCUSD",
-  "USDCAD",
-  "GBPJPY",
-  "ADAUSD",
-  "BRENT",
-  "XAUUSD",
-  "XAGUSD",
-  "ETHUSD",
-  "DowJones30",
-  "Nasdaq100"
+  "EURUSD","GBPUSD","USDJPY","USDCHF",
+  "AUDUSD","AUDJPY","CADJPY","EURJPY","BTCUSD",
+  "USDCAD","GBPJPY","ADAUSD","BRENT","XAUUSD","XAGUSD",
+  "ETHUSD","DowJones30","Nasdaq100"
 ];
 
 const Map<String, String> DISPLAY_MODES = {
@@ -62,8 +46,8 @@ class _MainScreenState extends State<MainScreen> {
   final ApiService _api = ApiService();
 
   Map<String, dynamic> _timeframes = {};
-  Map<String, dynamic> _modes = {};
-  Map<String, dynamic> _sessions = {};
+  Map<String, bool> _modes = {};
+  Map<String, bool> _sessions = {};
 
   List<dynamic> _alerts = [];
   bool _loadingAlerts = true;
@@ -113,8 +97,10 @@ class _MainScreenState extends State<MainScreen> {
       try {
         final map = jsonDecode(saved) as Map<String, dynamic>;
         _timeframes = Map<String, dynamic>.from(map['timeframes'] ?? {});
-        _modes = Map<String, dynamic>.from(map['modes'] ?? {});
-        _sessions = Map<String, dynamic>.from(map['sessions'] ?? {});
+        _modes = Map<String, bool>.from(
+            (map['modes'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
+        _sessions = Map<String, bool>.from(
+            (map['sessions'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
       } catch (_) {}
     }
 
@@ -123,8 +109,10 @@ class _MainScreenState extends State<MainScreen> {
       final data = await _api.getSettings(widget.userId);
       setState(() {
         _timeframes = Map<String, dynamic>.from(data['timeframes'] ?? _timeframes);
-        _modes = Map<String, dynamic>.from(data['modes'] ?? _modes);
-        _sessions = Map<String, dynamic>.from(data['sessions'] ?? _sessions);
+        _modes = Map<String, bool>.from(
+            (data['modes'] ?? _modes).map((k, v) => MapEntry(k as String, v == true)));
+        _sessions = Map<String, bool>.from(
+            (data['sessions'] ?? _sessions).map((k, v) => MapEntry(k as String, v == true)));
         _loadingSettings = false;
       });
       // save merged locally
@@ -175,11 +163,11 @@ class _MainScreenState extends State<MainScreen> {
       context: context,
       isScrollControlled: true,
       builder: (_) {
-        // create a copy to edit locally
         final temp = Map<String, bool>.from({
           for (var k in DISPLAY_MODES.keys) k: _modes[k] == true,
         });
         return StatefulBuilder(builder: (context, setStateSheet) {
+          String selectedA = temp['A1'] == true ? 'A1' : temp['A2'] == true ? 'A2' : '';
           return Padding(
             padding: MediaQuery.of(context).viewInsets,
             child: Container(
@@ -189,24 +177,55 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   const Text('انتخاب مودها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  ...DISPLAY_MODES.keys.map((k) {
-                    if (k == 'A1' || k == 'A2') {
-                      return RadioListTile<bool>(
-                        value: true,
-                        groupValue: temp[k],
-                        title: Text(DISPLAY_MODES[k]!),
-                        onChanged: (_) {
-                          setStateSheet(() {
-                            temp['A1'] = k == 'A1';
-                            temp['A2'] = k == 'A2';
-                          });
-                        },
-                        selected: temp[k] == true,
-                      );
-                    }
+                  // A1 / A2 as radio
+                  ListTile(
+                    title: Text(DISPLAY_MODES['A1']!),
+                    leading: Radio<String>(
+                      value: 'A1',
+                      groupValue: selectedA,
+                      onChanged: (v) {
+                        setStateSheet(() {
+                          selectedA = 'A1';
+                          temp['A1'] = true;
+                          temp['A2'] = false;
+                        });
+                      },
+                    ),
+                    onTap: () {
+                      setStateSheet(() {
+                        selectedA = 'A1';
+                        temp['A1'] = true;
+                        temp['A2'] = false;
+                      });
+                    },
+                  ),
+                  ListTile(
+                    title: Text(DISPLAY_MODES['A2']!),
+                    leading: Radio<String>(
+                      value: 'A2',
+                      groupValue: selectedA,
+                      onChanged: (v) {
+                        setStateSheet(() {
+                          selectedA = 'A2';
+                          temp['A1'] = false;
+                          temp['A2'] = true;
+                        });
+                      },
+                    ),
+                    onTap: () {
+                      setStateSheet(() {
+                        selectedA = 'A2';
+                        temp['A1'] = false;
+                        temp['A2'] = true;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  // other modes as checkboxes
+                  ...['B', 'C', 'D', 'E', 'F', 'G'].map((k) {
                     return CheckboxListTile(
                       title: Text(DISPLAY_MODES[k]!),
-                      value: temp[k],
+                      value: temp[k] ?? false,
                       onChanged: (v) => setStateSheet(() => temp[k] = v ?? false),
                     );
                   }).toList(),
@@ -218,7 +237,7 @@ class _MainScreenState extends State<MainScreen> {
                       ElevatedButton(
                         onPressed: () async {
                           // apply
-                          _modes = {for (var k in temp.keys) k: temp[k]};
+                          _modes = {for (var k in temp.keys) k: temp[k] == true};
                           await _saveSettings();
                           Navigator.pop(context);
                         },
@@ -267,7 +286,7 @@ class _MainScreenState extends State<MainScreen> {
                       TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
                       ElevatedButton(
                         onPressed: () async {
-                          _sessions = {for (var k in temp.keys) k: temp[k]};
+                          _sessions = {for (var k in temp.keys) k: temp[k] == true};
                           await _saveSettings();
                           Navigator.pop(context);
                         },
@@ -419,15 +438,10 @@ class _MainScreenState extends State<MainScreen> {
                               final codeMatch = RegExp(r'<code>(.*?)</code>').firstMatch(caption);
                               if (codeMatch != null) {
                                 final copy = codeMatch.group(1)!;
-                                // copy to clipboard
-                                // using Clipboard from services
-                                // but to avoid import issues, use root
-                                // import at top would be needed; ignoring for brevity
-                                // We'll use Flutter's Clipboard
-                                // (add import)
-                                // For now show toast
-                                // Implement actual copy:
-                                // Clipboard.setData(ClipboardData(text: copy));
+                                Clipboard.setData(ClipboardData(text: copy));
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کپی شد!')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متنی برای کپی موجود نیست')));
                               }
                             },
                             child: const Text('کپی متن'),
