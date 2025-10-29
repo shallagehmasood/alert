@@ -1,12 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 import '../services/api_service.dart';
+import '../utils/local_storage.dart';
+import '../widgets/mode_bottom_sheet.dart';
+import '../widgets/session_bottom_sheet.dart';
+import '../widgets/timeframe_bottom_sheet.dart';
 import 'pair_settings_screen.dart';
 
 const List<String> PAIRS = [
@@ -16,30 +18,12 @@ const List<String> PAIRS = [
   "ETHUSD","DowJones30","Nasdaq100"
 ];
 
-const Map<String, String> DISPLAY_MODES = {
-  "A1": "هیدن اول",
-  "A2": "همه هیدن ها",
-  "B": "دایورجنس نبودن نقطه 2 در مکدی دیفالت اول 1 ",
-  "C": "دایورجنس نبودن نقطه 2 در مکدی چهار برابر",
-  "D": "زده شدن سقف یا کف جدید نسبت به 52 کندل قبل",
-  "E": "عدم تناسب در نقطه 3 بین مکدی دیفالت و مووینگ 60",
-  "F": "از 2 تا 3 اصلاح مناسبی داشته باشد",
-  "G": "دایورجنس نبودن نقطه 2 در مکدی دیفالت لول 2 ",
-};
-
-const Map<String, String> DISPLAY_SESSIONS = {
-  "TOKYO": "سشن توکیو ‎( 03:00-10:00)",
-  "LONDON": "سشن لندن ‎(19:00 - 22:00)",
-  "NEWYORK": "سشن نیویورک ‎(15:00 - 00:00)",
-  "SYDNEY": "سشن سیدنی ‎(01:00 - 10:00)"
-};
-
 class MainScreen extends StatefulWidget {
   final String userId;
   const MainScreen({super.key, required this.userId});
 
   @override
-  _MainScreenState createState() => _MainScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
@@ -52,7 +36,6 @@ class _MainScreenState extends State<MainScreen> {
   List<dynamic> _alerts = [];
   bool _loadingAlerts = true;
   Timer? _alertsTimer;
-
   bool _loadingSettings = true;
 
   @override
@@ -66,6 +49,51 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _alertsTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadLocalThenServerSettings() async {
+    final local = await LocalStorage.loadSettings(widget.userId);
+    setState(() {
+      _timeframes = Map<String, dynamic>.from(local['timeframes'] ?? {});
+      _modes = Map<String, bool>.from((local['modes'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
+      _sessions = Map<String, bool>.from((local['sessions'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
+    });
+
+    try {
+      final server = await _api.getSettings(widget.userId);
+      setState(() {
+        _timeframes = Map<String, dynamic>.from(server['timeframes'] ?? _timeframes);
+        _modes = Map<String, bool>.from((server['modes'] ?? _modes).map((k, v) => MapEntry(k as String, v == true)));
+        _sessions = Map<String, bool>.from((server['sessions'] ?? _sessions).map((k, v) => MapEntry(k as String, v == true)));
+        _loadingSettings = false;
+      });
+      await LocalStorage.saveSettings(widget.userId, {
+        'timeframes': _timeframes,
+        'modes': _modes,
+        'sessions': _sessions,
+      });
+    } catch (_) {
+      setState(() => _loadingSettings = false);
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    final payload = {
+      'timeframes': _timeframes,
+      'modes': _modes,
+      'sessions': _sessions,
+    };
+    // save local
+    await LocalStorage.saveSettings(widget.userId, payload);
+
+    // try server
+    try {
+      await _api.saveSettings(widget.userId, payload);
+      Fluttertoast.showToast(msg: 'تنظیمات ذخیره شد');
+    } catch (_) {
+      Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین?)');
+    }
+    setState(() {});
   }
 
   Future<void> _startAlertsPolling() async {
@@ -84,221 +112,67 @@ class _MainScreenState extends State<MainScreen> {
           _loadingAlerts = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _loadingAlerts = false);
     }
   }
 
-  Future<void> _loadLocalThenServerSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'settings_${widget.userId}';
-    final saved = prefs.getString(key);
-    if (saved != null) {
-      try {
-        final map = jsonDecode(saved) as Map<String, dynamic>;
-        _timeframes = Map<String, dynamic>.from(map['timeframes'] ?? {});
-        _modes = Map<String, bool>.from(
-            (map['modes'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
-        _sessions = Map<String, bool>.from(
-            (map['sessions'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
-      } catch (_) {}
-    }
-
-    // then try server
-    try {
-      final data = await _api.getSettings(widget.userId);
-      setState(() {
-        _timeframes = Map<String, dynamic>.from(data['timeframes'] ?? _timeframes);
-        _modes = Map<String, bool>.from(
-            (data['modes'] ?? _modes).map((k, v) => MapEntry(k as String, v == true)));
-        _sessions = Map<String, bool>.from(
-            (data['sessions'] ?? _sessions).map((k, v) => MapEntry(k as String, v == true)));
-        _loadingSettings = false;
-      });
-      // save merged locally
-      await prefs.setString(key, jsonEncode({
-        'timeframes': _timeframes,
-        'modes': _modes,
-        'sessions': _sessions,
-      }));
-    } catch (e) {
-      setState(() => _loadingSettings = false);
-    }
+  Color _buttonColorActive(bool active) {
+    return active ? Colors.green.shade600 : Colors.white;
   }
 
-  Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'settings_${widget.userId}';
-    final payload = {
-      'timeframes': _timeframes,
-      'modes': _modes,
-      'sessions': _sessions,
-    };
-    // save locally first
-    await prefs.setString(key, jsonEncode(payload));
-
-    // then try server
-    try {
-      await _api.saveSettings(widget.userId, payload);
-      Fluttertoast.showToast(msg: 'تنظیمات ذخیره شد');
-    } catch (e) {
-      Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین?)');
-    }
-
-    setState(() {});
+  Color _buttonTextColor(bool active) {
+    return active ? Colors.white : Colors.black;
   }
 
-  Color _buttonColorForModes() {
-    final any = _modes.values.any((v) => v == true);
-    return any ? Colors.green.shade600 : Colors.blue;
-  }
-
-  Color _buttonColorForSessions() {
-    final any = _sessions.values.any((v) => v == true);
-    return any ? Colors.green.shade600 : Colors.blue;
-  }
-
+  // Open mode sheet (widget)
   void _openModesSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (_) {
-        final temp = Map<String, bool>.from({
-          for (var k in DISPLAY_MODES.keys) k: _modes[k] == true,
-        });
-        return StatefulBuilder(builder: (context, setStateSheet) {
-          String selectedA = temp['A1'] == true ? 'A1' : temp['A2'] == true ? 'A2' : '';
-          return Padding(
-            padding: MediaQuery.of(context).viewInsets,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('انتخاب مودها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  // A1 / A2 as radio
-                  ListTile(
-                    title: Text(DISPLAY_MODES['A1']!),
-                    leading: Radio<String>(
-                      value: 'A1',
-                      groupValue: selectedA,
-                      onChanged: (v) {
-                        setStateSheet(() {
-                          selectedA = 'A1';
-                          temp['A1'] = true;
-                          temp['A2'] = false;
-                        });
-                      },
-                    ),
-                    onTap: () {
-                      setStateSheet(() {
-                        selectedA = 'A1';
-                        temp['A1'] = true;
-                        temp['A2'] = false;
-                      });
-                    },
-                  ),
-                  ListTile(
-                    title: Text(DISPLAY_MODES['A2']!),
-                    leading: Radio<String>(
-                      value: 'A2',
-                      groupValue: selectedA,
-                      onChanged: (v) {
-                        setStateSheet(() {
-                          selectedA = 'A2';
-                          temp['A1'] = false;
-                          temp['A2'] = true;
-                        });
-                      },
-                    ),
-                    onTap: () {
-                      setStateSheet(() {
-                        selectedA = 'A2';
-                        temp['A1'] = false;
-                        temp['A2'] = true;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 6),
-                  // other modes as checkboxes
-                  ...['B', 'C', 'D', 'E', 'F', 'G'].map((k) {
-                    return CheckboxListTile(
-                      title: Text(DISPLAY_MODES[k]!),
-                      value: temp[k] ?? false,
-                      onChanged: (v) => setStateSheet(() => temp[k] = v ?? false),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
-                      ElevatedButton(
-                        onPressed: () async {
-                          // apply
-                          _modes = {for (var k in temp.keys) k: temp[k] == true};
-                          await _saveSettings();
-                          Navigator.pop(context);
-                        },
-                        child: const Text('ذخیره'),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          );
-        });
+        return ModeBottomSheet(
+          initial: _modes,
+          onSave: (result) async {
+            _modes = {for (var e in result.entries) e.key: e.value};
+            await _saveSettings();
+          },
+        );
       },
     );
   }
 
+  // Open session sheet (widget)
   void _openSessionsSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (_) {
-        final temp = Map<String, bool>.from({
-          for (var k in DISPLAY_SESSIONS.keys) k: _sessions[k] == true,
-        });
-        return StatefulBuilder(builder: (context, setStateSheet) {
-          return Padding(
-            padding: MediaQuery.of(context).viewInsets,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('انتخاب سشن‌ها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  ...DISPLAY_SESSIONS.keys.map((k) {
-                    return SwitchListTile(
-                      title: Text(DISPLAY_SESSIONS[k]!),
-                      value: temp[k] ?? false,
-                      onChanged: (v) => setStateSheet(() => temp[k] = v),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
-                      ElevatedButton(
-                        onPressed: () async {
-                          _sessions = {for (var k in temp.keys) k: temp[k] == true};
-                          await _saveSettings();
-                          Navigator.pop(context);
-                        },
-                        child: const Text('ذخیره'),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          );
-        });
+        return SessionBottomSheet(
+          initial: _sessions,
+          onSave: (result) async {
+            _sessions = {for (var e in result.entries) e.key: e.value};
+            await _saveSettings();
+          },
+        );
+      },
+    );
+  }
+
+  // Open timeframe sheet for a pair (widget)
+  void _openTimeframeForPair(String pair) {
+    final initialPair = Map<String, dynamic>.from(_timeframes[pair] ?? {'signal': 'BUYSELL'});
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        return TimeframeBottomSheet(
+          initialPairData: initialPair,
+          onSave: (pairData) async {
+            _timeframes[pair] = pairData;
+            await _saveSettings();
+          },
+        );
       },
     );
   }
@@ -312,6 +186,43 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // mode & session buttons (same style as pair buttons)
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _openModesSheet,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _buttonColorActive(_modes.values.any((v) => v)),
+                      foregroundColor: _buttonTextColor(_modes.values.any((v) => v)),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Text('مود', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _openSessionsSheet,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _buttonColorActive(_sessions.values.any((v) => v)),
+                      foregroundColor: _buttonTextColor(_sessions.values.any((v) => v)),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Text('سشن', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             const Text('جفت ارزها', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Expanded(
@@ -323,59 +234,22 @@ class _MainScreenState extends State<MainScreen> {
                   mainAxisSpacing: 8,
                   childAspectRatio: 2.5,
                 ),
-                itemCount: PAIRS.length + 1, // +1 for the action row (modes/sessions)
+                itemCount: PAIRS.length,
                 itemBuilder: (context, index) {
-                  if (index < PAIRS.length) {
-                    final pair = PAIRS[index];
-                    return ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                      onPressed: () async {
-                        // open pair settings screen
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PairSettingsScreen(
-                              userId: widget.userId,
-                              pair: pair,
-                              onSave: (timeframes, signal) async {
-                                // update local map and save
-                                final cur = Map<String, dynamic>.from(_timeframes);
-                                cur[pair] = timeframes;
-                                _timeframes = cur;
-                                await _saveSettings();
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                      child: Text(pair, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
-                    );
-                  }
-
-                  // last cell: a container with two buttons stacked
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _openModesSheet,
-                          style: ElevatedButton.styleFrom(backgroundColor: _buttonColorForModes()),
-                          child: const Text('مود'),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _openSessionsSheet,
-                          style: ElevatedButton.styleFrom(backgroundColor: _buttonColorForSessions()),
-                          child: const Text('سشن'),
-                        ),
-                      ),
-                    ],
+                  final pair = PAIRS[index];
+                  final active = (_timeframes[pair] ?? {}).values.any((v) => v == true);
+                  return ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: active ? Colors.green.shade600 : Colors.white,
+                      foregroundColor: active ? Colors.white : Colors.black,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: () async {
+                      // open timeframe bottom sheet for this pair
+                      _openTimeframeForPair(pair);
+                    },
+                    child: Text(pair, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
                   );
                 },
               ),
