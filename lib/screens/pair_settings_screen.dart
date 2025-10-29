@@ -1,17 +1,42 @@
+
+### lib/screens/pair_settings_screen.dart
+```dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/api_service.dart';
 
 const List<String> TIMEFRAMES = [
-  "M1", "M2", "M3", "M4", "M5", "M6",
-  "M10", "M12", "M15", "M20", "M30", "H1",
-  "H2", "H3", "H4", "H6", "H8", "H12", "D1", "W1"
+  "M1",
+  "M2",
+  "M3",
+  "M4",
+  "M5",
+  "M6",
+  "M10",
+  "M12",
+  "M15",
+  "M20",
+  "M30",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H6",
+  "H8",
+  "H12",
+  "D1",
+  "W1"
 ];
 
 class PairSettingsScreen extends StatefulWidget {
   final String userId;
   final String pair;
-  const PairSettingsScreen({super.key, required this.userId, required this.pair});
+  final Future<void> Function(Map<String, dynamic> timeframes, String signal)? onSave;
+  const PairSettingsScreen({super.key, required this.userId, required this.pair, this.onSave});
 
   @override
   _PairSettingsScreenState createState() => _PairSettingsScreenState();
@@ -30,11 +55,20 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
 
   Future<void> _loadPairData() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'settings_${widget.userId}';
+      final saved = prefs.getString(key);
+      if (saved != null) {
+        final map = jsonDecode(saved) as Map<String, dynamic>;
+        final timeframes = Map<String, dynamic>.from(map['timeframes'] ?? {});
+        _pairData = Map<String, dynamic>.from(timeframes[widget.pair] ?? {'signal': 'BUYSELL'});
+      }
+
+      // also try server
       final data = await _api.getSettings(widget.userId);
-      final timeframes = (data['timeframes'] as Map?) ?? {};
-      _pairData = Map<String, dynamic>.from(
-        (timeframes[widget.pair] as Map?) ?? {'signal': 'BUYSELL'}
-      );
+      final timeframesServer = Map<String, dynamic>.from(data['timeframes'] ?? {});
+      _pairData = Map<String, dynamic>.from(timeframesServer[widget.pair] ?? _pairData);
+
       setState(() => _loading = false);
     } catch (e) {
       Fluttertoast.showToast(msg: 'خطا در بارگذاری تنظیمات');
@@ -55,15 +89,39 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
   Future<void> _save() async {
     try {
       final fullData = await _api.getSettings(widget.userId);
-      final timeframes = (fullData['timeframes'] as Map?) ?? {};
+      final timeframes = Map<String, dynamic>.from(fullData['timeframes'] ?? {});
       timeframes[widget.pair] = _pairData;
-      await _api.saveSettings(widget.userId, {
+
+      final payload = {
         'timeframes': timeframes,
-        'modes': fullData['modes'],
-        'sessions': fullData['sessions'],
-      });
+        'modes': fullData['modes'] ?? {},
+        'sessions': fullData['sessions'] ?? {},
+      };
+
+      // save to server
+      try {
+        await _api.saveSettings(widget.userId, payload);
+        Fluttertoast.showToast(msg: 'ذخیره شد');
+      } catch (e) {
+        Fluttertoast.showToast(msg: 'ذخیره در سرور نشد');
+      }
+
+      // save locally
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'settings_${widget.userId}';
+      final saved = prefs.getString(key);
+      Map<String, dynamic> root = {};
+      if (saved != null) {
+        try {
+          root = jsonDecode(saved) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+      root['timeframes'] = timeframes;
+      await prefs.setString(key, jsonEncode(root));
+
+      if (widget.onSave != null) await widget.onSave!(timeframes, _pairData['signal'] ?? 'BUYSELL');
     } catch (e) {
-      Fluttertoast.showToast(msg: 'ذخیره نشد');
+      Fluttertoast.showToast(msg: 'خطا در ذخیره');
     }
   }
 
