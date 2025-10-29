@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ← اضافه شد
 import '../services/api_service.dart';
 
 const Map<String, String> DISPLAY_MODES = {
@@ -26,6 +27,27 @@ class _ModesScreenState extends State<ModesScreen> {
   Map<String, bool> _modes = {};
   bool _loading = true;
 
+  // ذخیره در حافظه محلی
+  Future<void> _saveLocalModes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'modes_${widget.userId}',
+      _modes.entries.where((e) => e.value).map((e) => e.key).toList(),
+    );
+  }
+
+  // بارگذاری از حافظه محلی
+  Future<void> _loadLocalModes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('modes_${widget.userId}') ?? [];
+    setState(() {
+      _modes = {
+        for (var mode in ['A1', 'A2', 'B', 'C', 'D', 'E', 'F', 'G'])
+          mode: saved.contains(mode)
+      };
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,19 +56,25 @@ class _ModesScreenState extends State<ModesScreen> {
 
   Future<void> _loadModes() async {
     try {
+      // اول از حافظه محلی بارگذاری کن
+      await _loadLocalModes();
+
+      // سپس از سرور هم بارگذاری کن (اگر آفلاین نیست)
       final data = await _api.getSettings(widget.userId);
-      final modes = (data['modes'] as Map?) ?? {};
+      final serverModes = (data['modes'] as Map?) ?? {};
       setState(() {
         _modes = {
           for (var mode in ['A1', 'A2', 'B', 'C', 'D', 'E', 'F', 'G'])
-            mode: modes[mode] == true
+            mode: serverModes[mode] == true
         };
-        _loading = false;
+        // ذخیره دوباره در حافظه محلی
+        _saveLocalModes();
       });
     } catch (e) {
-      Fluttertoast.showToast(msg: 'خطا در بارگذاری مودها');
-      setState(() => _loading = false);
+      // اگر سرور در دسترس نیست، فقط از حافظه محلی استفاده کن
+      await _loadLocalModes();
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _toggleMode(String mode) async {
@@ -62,14 +90,18 @@ class _ModesScreenState extends State<ModesScreen> {
       }
     });
 
+    // ذخیره در حافظه محلی
+    await _saveLocalModes();
+
     try {
+      // ذخیره در سرور
       await _api.saveSettings(widget.userId, {
         'timeframes': {},
         'modes': _modes,
         'sessions': {},
       });
     } catch (e) {
-      Fluttertoast.showToast(msg: 'ذخیره نشد');
+      Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین؟)');
     }
   }
 
