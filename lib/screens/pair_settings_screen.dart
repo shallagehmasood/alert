@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../services/api_service.dart';
+import '../utils/local_storage.dart';
 
 const List<String> TIMEFRAMES = [
   "M1", "M2", "M3", "M4", "M5", "M6",
@@ -16,10 +16,11 @@ class PairSettingsScreen extends StatefulWidget {
   final String userId;
   final String pair;
   final Future<void> Function(Map<String, dynamic> timeframes, String signal)? onSave;
+
   const PairSettingsScreen({super.key, required this.userId, required this.pair, this.onSave});
 
   @override
-  _PairSettingsScreenState createState() => _PairSettingsScreenState();
+  State<PairSettingsScreen> createState() => _PairSettingsScreenState();
 }
 
 class _PairSettingsScreenState extends State<PairSettingsScreen> {
@@ -35,19 +36,13 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
 
   Future<void> _loadPairData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'settings_${widget.userId}';
-      final saved = prefs.getString(key);
-      if (saved != null) {
-        final map = jsonDecode(saved) as Map<String, dynamic>;
-        final timeframes = Map<String, dynamic>.from(map['timeframes'] ?? {});
-        _pairData = Map<String, dynamic>.from(timeframes[widget.pair] ?? {'signal': 'BUYSELL'});
-      }
+      final local = await LocalStorage.loadSettings(widget.userId);
+      _pairData = Map<String, dynamic>.from(local['timeframes'] ?? {});
+      _pairData = Map<String, dynamic>.from(_pairData[widget.pair] ?? {'signal': 'BUYSELL'});
 
-      // also try server
-      final data = await _api.getSettings(widget.userId);
-      final timeframesServer = Map<String, dynamic>.from(data['timeframes'] ?? {});
-      _pairData = Map<String, dynamic>.from(timeframesServer[widget.pair] ?? _pairData);
+      final server = await _api.getSettings(widget.userId);
+      final serverTfs = Map<String, dynamic>.from(server['timeframes'] ?? {});
+      _pairData = Map<String, dynamic>.from(serverTfs[widget.pair] ?? _pairData);
 
       setState(() => _loading = false);
     } catch (e) {
@@ -56,53 +51,52 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
     }
   }
 
-  Future<void> _toggleTimeframe(String tf) async {
-    _pairData[tf] = !(_pairData[tf] ?? false);
-    await _save();
-  }
-
-  Future<void> _setSignal(String signal) async {
-    _pairData['signal'] = signal;
-    await _save();
-  }
-
   Future<void> _save() async {
     try {
-      final fullData = await _api.getSettings(widget.userId);
-      final timeframes = Map<String, dynamic>.from(fullData['timeframes'] ?? {});
+      final full = await _api.getSettings(widget.userId);
+      final timeframes = Map<String, dynamic>.from(full['timeframes'] ?? {});
       timeframes[widget.pair] = _pairData;
 
       final payload = {
         'timeframes': timeframes,
-        'modes': fullData['modes'] ?? {},
-        'sessions': fullData['sessions'] ?? {},
+        'modes': full['modes'] ?? {},
+        'sessions': full['sessions'] ?? {},
       };
 
-      // save to server
+      // try server
       try {
         await _api.saveSettings(widget.userId, payload);
         Fluttertoast.showToast(msg: 'ذخیره شد');
-      } catch (e) {
+      } catch (_) {
         Fluttertoast.showToast(msg: 'ذخیره در سرور نشد');
       }
 
-      // save locally
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'settings_${widget.userId}';
-      final saved = prefs.getString(key);
-      Map<String, dynamic> root = {};
-      if (saved != null) {
-        try {
-          root = jsonDecode(saved) as Map<String, dynamic>;
-        } catch (_) {}
-      }
-      root['timeframes'] = timeframes;
-      await prefs.setString(key, jsonEncode(root));
+      // save locally (merge)
+      final root = {
+        'timeframes': timeframes,
+        'modes': full['modes'] ?? {},
+        'sessions': full['sessions'] ?? {},
+      };
+      await LocalStorage.saveSettings(widget.userId, root);
 
       if (widget.onSave != null) await widget.onSave!(timeframes, _pairData['signal'] ?? 'BUYSELL');
     } catch (e) {
       Fluttertoast.showToast(msg: 'خطا در ذخیره');
     }
+  }
+
+  Future<void> _toggleTf(String tf) async {
+    setState(() {
+      _pairData[tf] = !(_pairData[tf] == true);
+    });
+    await _save();
+  }
+
+  Future<void> _setSignal(String s) async {
+    setState(() {
+      _pairData['signal'] = s;
+    });
+    await _save();
   }
 
   @override
@@ -125,7 +119,7 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
                     FilterChip(
                       label: Text(tf),
                       selected: _pairData[tf] == true,
-                      onSelected: (_) => _toggleTimeframe(tf),
+                      onSelected: (_) => _toggleTf(tf),
                       selectedColor: Colors.blue,
                       checkmarkColor: Colors.white,
                     ),
@@ -137,25 +131,15 @@ class _PairSettingsScreenState extends State<PairSettingsScreen> {
               Wrap(
                 spacing: 12,
                 children: [
-                  _buildSignalChip('BUY', _pairData['signal'] == 'BUY'),
-                  _buildSignalChip('SELL', _pairData['signal'] == 'SELL'),
-                  _buildSignalChip('BUYSELL', _pairData['signal'] == 'BUYSELL'),
+                  ChoiceChip(label: const Text('BUY'), selected: _pairData['signal'] == 'BUY', onSelected: (_) => _setSignal('BUY')),
+                  ChoiceChip(label: const Text('SELL'), selected: _pairData['signal'] == 'SELL', onSelected: (_) => _setSignal('SELL')),
+                  ChoiceChip(label: const Text('BUYSELL'), selected: _pairData['signal'] == 'BUYSELL', onSelected: (_) => _setSignal('BUYSELL')),
                 ],
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSignalChip(String label, bool selected) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => _setSignal(label),
-      selectedColor: Colors.green,
-      checkmarkColor: Colors.white,
     );
   }
 }
