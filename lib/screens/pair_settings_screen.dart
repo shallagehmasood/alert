@@ -1,6 +1,3 @@
-
-### lib/screens/pair_settings_screen.dart
-
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,26 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 const List<String> TIMEFRAMES = [
-  "M1",
-  "M2",
-  "M3",
-  "M4",
-  "M5",
-  "M6",
-  "M10",
-  "M12",
-  "M15",
-  "M20",
-  "M30",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "H6",
-  "H8",
-  "H12",
-  "D1",
-  "W1"
+  "M1", "M2", "M3", "M4", "M5", "M6",
+  "M10", "M12", "M15", "M20", "M30", "H1",
+  "H2", "H3", "H4", "H6", "H8", "H12", "D1", "W1"
 ];
 
 class PairSettingsScreen extends StatefulWidget {
