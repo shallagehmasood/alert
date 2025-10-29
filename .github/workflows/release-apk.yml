@@ -1,8 +1,8 @@
-name: Build Release APK for Alert_X
+name: Build Release APK for alert_x
 
 on:
   push:
-    branches: [ "Alert_X" ]
+    branches: [ "alert_x" ]
   workflow_dispatch:
 
 jobs:
@@ -38,5 +38,5 @@ jobs:
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Alert_X-release-apk
+          name: alert_x-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
