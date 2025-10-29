@@ -10,8 +10,14 @@ const Map<String, String> DISPLAY_SESSIONS = {
 class SessionBottomSheet extends StatefulWidget {
   final Map<String, bool> initial;
   final void Function(Map<String, bool> result) onSave;
+  final ScrollController? scrollController;
 
-  const SessionBottomSheet({super.key, required this.initial, required this.onSave});
+  const SessionBottomSheet({
+    super.key,
+    required this.initial,
+    required this.onSave,
+    this.scrollController,
+  });
 
   @override
   State<SessionBottomSheet> createState() => _SessionBottomSheetState();
@@ -30,40 +36,34 @@ class _SessionBottomSheetState extends State<SessionBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: MediaQuery.of(context).viewInsets.add(const EdgeInsets.all(12)),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('انتخاب سشن‌ها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ...DISPLAY_SESSIONS.keys.map((k) {
-                return SwitchListTile(
-                  title: Text(DISPLAY_SESSIONS[k]!),
-                  value: temp[k] ?? false,
-                  onChanged: (v) => setState(() => temp[k] = v),
-                );
-              }).toList(),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
-                  ElevatedButton(
-                    onPressed: () {
-                      widget.onSave(temp);
-                      Navigator.pop(context);
-                    },
-                    child: const Text('ذخیره'),
-                  ),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.all(12),
+      children: [
+        const Text('انتخاب سشن‌ها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ...DISPLAY_SESSIONS.keys.map((k) {
+          return SwitchListTile(
+            title: Text(DISPLAY_SESSIONS[k]!),
+            value: temp[k] ?? false,
+            onChanged: (v) => setState(() => temp[k] = v),
+          );
+        }).toList(),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
+            ElevatedButton(
+              onPressed: () {
+                widget.onSave(temp);
+                Navigator.pop(context);
+              },
+              child: const Text('ذخیره'),
+            ),
+          ],
+        )
+      ],
     );
   }
 }
