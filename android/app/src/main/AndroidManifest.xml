@@ -3,7 +3,7 @@
         android:label="Alert_X"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">  <!-- ✅ این خط اضافه شد -->
+        android:usesCleartextTraffic="true">
         
         <activity
             android:name="ir.masoodfx.alertx.MainActivity"
@@ -28,7 +28,7 @@
     </application>
 
     <uses-permission android:name="android.permission.INTERNET"/>
-    
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
