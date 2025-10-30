@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/signal_provider.dart';
 import '../widgets/signal_popup.dart';
-import '../models/signal_model.dart'; // ← این خط رو اضافه کن
+import '../models/signal_model.dart';
 import 'login_screen.dart';
 import 'signals_screen.dart';
 import '../widgets/main_menu.dart';
@@ -96,6 +96,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _markNotificationsAsRead() {
+    final settingsProvider = context.read<SettingsProvider>();
+    final signalProvider = context.read<SignalProvider>();
+    
+    if (settingsProvider.userId != null) {
+      signalProvider.markNotificationsAsRead(settingsProvider.userId!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
@@ -117,12 +126,35 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          // نشانگر نوتیفیکیشن جدید
+          if (signalProvider.hasNewNotifications)
+            GestureDetector(
+              onTap: _markNotificationsAsRead,
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Text(
+                  '!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          
+          // نشانگر سیگنال جدید
           if (signalProvider.latestSignal != null)
             Container(
               margin: const EdgeInsets.all(8),
               padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
-                color: Colors.red,
+                color: Colors.orange,
                 shape: BoxShape.circle,
               ),
               child: const Text(
@@ -133,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -147,7 +180,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() => _currentIndex = index);
+          
+          // وقتی کاربر به تب گالری می‌رود، نوتیفیکیشن‌ها رو علامت‌گذاری کن
+          if (index == 1) {
+            _markNotificationsAsRead();
+          }
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
