@@ -1,6 +1,8 @@
-// services/api_service.dart
-import 'package:http/http.dart' as http;
+// lib/services/api_service.dart
+import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/all_models.dart';
 
 class ApiService with ChangeNotifier {
   static const String baseUrl = 'http://178.63.171.244:8000';
@@ -56,7 +58,7 @@ class ApiService with ChangeNotifier {
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        List<dynamic> signalsJson = data['signals'];
+        List<dynamic> signalsJson = data['signals'] ?? [];
         _signals = signalsJson.map((json) => Signal.fromJson(json)).toList();
         notifyListeners();
         return _signals;
@@ -65,6 +67,23 @@ class ApiService with ChangeNotifier {
     } catch (e) {
       print('Error getting signals: $e');
       return [];
+    }
+  }
+
+  Future<bool> updateUserSettings(Map<String, dynamic> settings) async {
+    if (_userId == null) return false;
+    
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/$_userId/settings'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(settings),
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating settings: $e');
+      return false;
     }
   }
 }
