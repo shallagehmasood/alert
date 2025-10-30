@@ -1,10 +1,13 @@
+import 'dart:typed_data';
+import 'dart:convert';
+
 class Signal {
   final String pair;
   final String timeframe;
   final String signalType;
   final String modeBits;
   final DateTime timestamp;
-  final String? imageUrl;
+  final Uint8List? imageData;
 
   Signal({
     required this.pair,
@@ -12,17 +15,26 @@ class Signal {
     required this.signalType,
     required this.modeBits,
     required this.timestamp,
-    this.imageUrl,
+    this.imageData,
   });
 
   factory Signal.fromJson(Map<String, dynamic> json) {
+    Uint8List? imageData;
+    if (json['image_data'] != null) {
+      try {
+        imageData = base64.decode(json['image_data']);
+      } catch (e) {
+        print('خطا در decode تصویر: $e');
+      }
+    }
+
     return Signal(
       pair: json['pair'],
       timeframe: json['timeframe'],
       signalType: json['signal_type'],
       modeBits: json['mode_bits'],
       timestamp: DateTime.parse(json['timestamp']),
-      imageUrl: json['image_url'],
+      imageData: imageData,
     );
   }
 
