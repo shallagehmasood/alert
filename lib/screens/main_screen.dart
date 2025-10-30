@@ -1,21 +1,17 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-
 import '../services/api_service.dart';
 import '../utils/local_storage.dart';
 import '../widgets/mode_bottom_sheet.dart';
 import '../widgets/session_bottom_sheet.dart';
 import '../widgets/timeframe_bottom_sheet.dart';
-import 'pair_settings_screen.dart';
 
 const List<String> PAIRS = [
-  "EURUSD", "GBPUSD", "USDJPY", "USDCHF",
-  "AUDUSD", "AUDJPY", "CADJPY", "EURJPY", "BTCUSD",
-  "USDCAD", "GBPJPY", "ADAUSD", "BRENT", "XAUUSD", "XAGUSD",
-  "ETHUSD", "DowJones30", "Nasdaq100"
+  "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "AUDJPY", 
+  "CADJPY", "EURJPY", "BTCUSD", "USDCAD", "GBPJPY", "ADAUSD", 
+  "BRENT", "XAUUSD", "XAGUSD", "ETHUSD", "DowJones30", "Nasdaq100"
 ];
 
 class MainScreen extends StatefulWidget {
@@ -28,6 +24,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   final ApiService _api = ApiService();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   Map<String, dynamic> _timeframes = {};
   Map<String, bool> _modes = {};
@@ -52,14 +49,14 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _loadLocalThenServerSettings() async {
-    final local = await LocalStorage.loadSettings(widget.userId);
-    setState(() {
-      _timeframes = Map<String, dynamic>.from(local['timeframes'] ?? {});
-      _modes = Map<String, bool>.from((local['modes'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
-      _sessions = Map<String, bool>.from((local['sessions'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
-    });
-
     try {
+      final local = await LocalStorage.loadSettings(widget.userId);
+      setState(() {
+        _timeframes = Map<String, dynamic>.from(local['timeframes'] ?? {});
+        _modes = Map<String, bool>.from((local['modes'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
+        _sessions = Map<String, bool>.from((local['sessions'] ?? {}).map((k, v) => MapEntry(k as String, v == true)));
+      });
+
       final server = await _api.getSettings(widget.userId);
       if (mounted) {
         setState(() {
@@ -74,7 +71,8 @@ class _MainScreenState extends State<MainScreen> {
         'modes': _modes,
         'sessions': _sessions,
       });
-    } catch (_) {
+    } catch (e) {
+      print('Error loading settings: $e');
       if (mounted) setState(() => _loadingSettings = false);
     }
   }
@@ -90,18 +88,17 @@ class _MainScreenState extends State<MainScreen> {
     try {
       await _api.saveSettings(widget.userId, payload);
       Fluttertoast.showToast(msg: 'تنظیمات ذخیره شد');
-    } catch (_) {
-      Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین?)');
+    } catch (e) {
+      print('Save to server failed: $e');
+      Fluttertoast.showToast(msg: 'ذخیره در سرور نشد (آفلاین)');
     }
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _startAlertsPolling() async {
     await _loadAlerts();
     _alertsTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      await _loadAlerts();
+      if (mounted) await _loadAlerts();
     });
   }
 
@@ -114,7 +111,8 @@ class _MainScreenState extends State<MainScreen> {
           _loadingAlerts = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
+      print('Error loading alerts: $e');
       if (mounted) setState(() => _loadingAlerts = false);
     }
   }
@@ -127,69 +125,56 @@ class _MainScreenState extends State<MainScreen> {
     return active ? Colors.white : Colors.black;
   }
 
-  // Open mode sheet (widget)
+  // 🔥 اصلاح شده - بدون mounted check
   void _openModesSheet() {
-    print("دکمه مود فشرده شده است!");
-    if (!mounted) return;  // Ensure context is valid
+    print("🚀 دکمه مود فشرده شده است!");
     showModalBottomSheet(
-      context: context,
+      context: _scaffoldKey.currentContext!,
       isScrollControlled: true,
       builder: (_) {
         return ModeBottomSheet(
           initial: _modes,
           onSave: (result) async {
-            if (mounted) {
-              setState(() {
-                _modes = {for (var e in result.entries) e.key: e.value};
-              });
-              await _saveSettings();
-            }
+            setState(() => _modes = result);
+            await _saveSettings();
           },
         );
       },
     );
   }
 
-  // Open session sheet (widget)
+  // 🔥 اصلاح شده - بدون mounted check
   void _openSessionsSheet() {
-    print("دکمه سشن فشرده شده است!");
-    if (!mounted) return;  // Ensure context is valid
+    print("🚀 دکمه سشن فشرده شده است!");
     showModalBottomSheet(
-      context: context,
+      context: _scaffoldKey.currentContext!,
       isScrollControlled: true,
       builder: (_) {
         return SessionBottomSheet(
           initial: _sessions,
           onSave: (result) async {
-            if (mounted) {
-              setState(() {
-                _sessions = {for (var e in result.entries) e.key: e.value};
-              });
-              await _saveSettings();
-            }
+            setState(() => _sessions = result);
+            await _saveSettings();
           },
         );
       },
     );
   }
 
-  // Open timeframe sheet for a pair (widget)
+  // 🔥 اصلاح شده - بدون mounted check
   void _openTimeframeForPair(String pair) {
+    print("🚀 دکمه $pair فشرده شده است!");
     final initialPair = Map<String, dynamic>.from(_timeframes[pair] ?? {'signal': 'BUYSELL'});
-    if (!mounted) return;  // Ensure context is valid
+    
     showModalBottomSheet(
-      context: context,
+      context: _scaffoldKey.currentContext!,
       isScrollControlled: true,
       builder: (_) {
         return TimeframeBottomSheet(
           initialPairData: initialPair,
           onSave: (pairData) async {
-            if (mounted) {
-              setState(() {
-                _timeframes[pair] = pairData;
-              });
-              await _saveSettings();
-            }
+            setState(() => _timeframes[pair] = pairData);
+            await _saveSettings();
           },
         );
       },
@@ -205,7 +190,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // mode & session buttons (same style as pair buttons)
+            // دکمه‌های مود و سشن
             Row(
               children: [
                 Expanded(
@@ -264,7 +249,10 @@ class _MainScreenState extends State<MainScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
                     onPressed: () => _openTimeframeForPair(pair),
-                    child: Text(pair, textAlign: TextAlign.center),
+                    child: Text(pair, 
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12),
+                    ),
                   );
                 },
               ),
@@ -278,20 +266,56 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey, // 🔥 اضافه شده
       appBar: AppBar(
         title: const Text("تنظیمات"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _loadLocalThenServerSettings,
+          ),
+        ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildTopArea(constraints),
-                // Add other sections if needed
-              ],
+      body: _loadingSettings 
+          ? Center(child: CircularProgressIndicator())
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _buildTopArea(constraints),
+                      // نمایش آلرت‌ها
+                      _buildAlertsSection(),
+                    ],
+                  ),
+                );
+              },
             ),
-          );
-        },
+    );
+  }
+
+  Widget _buildAlertsSection() {
+    return Container(
+      padding: EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('آلرت‌های فعال', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          _loadingAlerts 
+              ? Center(child: CircularProgressIndicator())
+              : _alerts.isEmpty
+                  ? Text('هیچ آلرتی یافت نشد')
+                  : Column(
+                      children: _alerts.map((alert) => Card(
+                        child: ListTile(
+                          title: Text(alert['pair'] ?? 'Unknown'),
+                          subtitle: Text(alert['signal'] ?? 'Unknown'),
+                          trailing: Text(alert['timeframe'] ?? ''),
+                        ),
+                      )).toList(),
+                    ),
+        ],
       ),
     );
   }
