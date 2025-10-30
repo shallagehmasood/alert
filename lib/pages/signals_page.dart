@@ -1,4 +1,7 @@
 // pages/signals_page.dart
+
+import 'package:flutter/material.dart';
+
 class SignalsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
