@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/signal_provider.dart';
 import '../widgets/signal_popup.dart';
+import '../models/signal_model.dart'; // ← این خط رو اضافه کن
 import 'login_screen.dart';
 import 'signals_screen.dart';
 import '../widgets/main_menu.dart';
