@@ -1,13 +1,12 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:first_hidden_app/services/api_service.dart';
-import 'package:first_hidden_app/services/notification_service.dart';
-import 'package:first_hidden_app/pages/login_page.dart';
-import 'package:first_hidden_app/pages/dashboard_page.dart';
+import 'models/all_models.dart';
+import 'services/api_service.dart';
+import 'pages/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService().init();
   runApp(MyApp());
 }
 
@@ -18,13 +17,16 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ApiService()),
         ChangeNotifierProvider(create: (_) => UserSettings()),
+        ChangeNotifierProvider(create: (_) => AppState()),
       ],
       child: MaterialApp(
         title: 'اولین هیدن',
         theme: ThemeData(
           primaryColor: Color(0xFF2196F3),
           primaryColorDark: Color(0xFF1976D2),
-          accentColor: Color(0xFFFF9800),
+          colorScheme: ColorScheme.fromSwatch().copyWith(
+            secondary: Color(0xFFFF9800),
+          ),
           backgroundColor: Color(0xFF121212),
           scaffoldBackgroundColor: Color(0xFF121212),
           cardColor: Color(0xFF1E1E1E),
