@@ -85,6 +85,7 @@ class MainMenu extends StatelessWidget {
   }
 
   Widget _buildMenuButton(
+    BuildContext context, // اضافه کردن context به پارامتر
     String text,
     IconData icon,
     Color color,
@@ -125,13 +126,13 @@ class MainMenu extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuRow(List<Widget> children) {
+  Widget _buildMenuRow(BuildContext context, List<Widget> children) {
     return Row(
       children: children,
     );
   }
 
-  Widget _buildPairButton(String pairName) {
+  Widget _buildPairButton(BuildContext context, String pairName) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -165,14 +166,14 @@ class MainMenu extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildPairGrid() {
+  List<Widget> _buildPairGrid(BuildContext context) {
     List<Widget> rows = [];
     
     for (int i = 0; i < TradingPair.pairs.length; i += 3) {
       List<Widget> rowPairs = [];
       
       for (int j = i; j < i + 3 && j < TradingPair.pairs.length; j++) {
-        rowPairs.add(_buildPairButton(TradingPair.pairs[j]));
+        rowPairs.add(_buildPairButton(context, TradingPair.pairs[j]));
       }
       
       while (rowPairs.length < 3) {
@@ -191,14 +192,16 @@ class MainMenu extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildMenuRow([
+          _buildMenuRow(context, [
             _buildMenuButton(
+              context,
               'درباره ما',
               Icons.info,
               Colors.blue,
               () => _showAboutDialog(context),
             ),
             _buildMenuButton(
+              context,
               'نحوه استفاده از بات',
               Icons.help,
               Colors.green,
@@ -209,6 +212,7 @@ class MainMenu extends StatelessWidget {
           const SizedBox(height: 12),
 
           _buildMenuButton(
+            context,
             'عضویت در کانال اولین هیدن',
             Icons.group,
             Colors.orange,
@@ -219,6 +223,7 @@ class MainMenu extends StatelessWidget {
           const SizedBox(height: 12),
 
           _buildMenuButton(
+            context,
             'First_Hidden_bot VIP 👑',
             Icons.workspace_premium,
             Colors.purple,
@@ -228,14 +233,16 @@ class MainMenu extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          _buildMenuRow([
+          _buildMenuRow(context, [
             _buildMenuButton(
+              context,
               'Ichimoku_bot',
               Icons.show_chart,
               Colors.red,
               _openIchimokuBot,
             ),
             _buildMenuButton(
+              context,
               'Fractal_Indicators_bot',
               Icons.polyline,
               Colors.teal,
@@ -245,12 +252,13 @@ class MainMenu extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          ..._buildPairGrid(),
+          ..._buildPairGrid(context),
 
           const SizedBox(height: 24),
 
-          _buildMenuRow([
+          _buildMenuRow(context, [
             _buildMenuButton(
+              context,
               'انتخاب مود',
               Icons.settings,
               Colors.indigo,
@@ -264,6 +272,7 @@ class MainMenu extends StatelessWidget {
               },
             ),
             _buildMenuButton(
+              context,
               'انتخاب سشن',
               Icons.access_time,
               Colors.deepOrange,
