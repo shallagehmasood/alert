@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; // 🔥 این import رو اضافه کنید
+import 'dart:convert'; // 🔥 برای jsonEncode
 
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -11,10 +13,10 @@ class NotificationService {
     
     // دریافت FCM Token
     _fcmToken = await _messaging.getToken();
-    print('FCM Token: $_fcmToken');
+    print('🎯 FCM Token: $_fcmToken');
     
-    // ذخیره token در سرور (اختیاری)
-    await _sendTokenToServer(_fcmToken);
+    // ذخیره token در سرور 
+    await _sendTokenToServer(_fcmToken); // 🔥 این حالا کار می‌کنه
     
     // تنظیم دسترسی‌ها
     NotificationSettings settings = await _messaging.requestPermission(
@@ -26,7 +28,7 @@ class NotificationService {
       provisional: false,
     );
     
-    print('دسترسی نوتیفیکیشن: ${settings.authorizationStatus}');
+    print('🔔 دسترسی نوتیفیکیشن: ${settings.authorizationStatus}');
     
     // مدیریت نوتیفیکیشن‌های foreground
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -39,36 +41,44 @@ class NotificationService {
   }
   
   static void _handleForegroundMessage(RemoteMessage message) {
-    print('نوتیفیکیشن دریافتی (Foreground): ${message.notification?.title}');
-    
-    // نمایش نوتیفیکیشن محلی
+    print('📨 نوتیفیکیشن دریافتی (Foreground): ${message.notification?.title}');
     _showLocalNotification(message);
   }
   
   static void _handleBackgroundMessage(RemoteMessage? message) {
     if (message != null) {
-      print('نوتیفیکیشن دریافتی (Background): ${message.notification?.title}');
-      
-      // هدایت کاربر به صفحه مربوطه
+      print('📨 نوتیفیکیشن دریافتی (Background): ${message.notification?.title}');
       _navigateToSignalScreen(message.data);
     }
   }
   
   static void _showLocalNotification(RemoteMessage message) {
-    // اینجا می‌تونی از flutter_local_notifications استفاده کنی
     // برای سادگی از SnackBar استفاده می‌کنیم
   }
   
   static void _navigateToSignalScreen(Map<String, dynamic> data) {
     // هدایت کاربر به صفحه سیگنال مربوطه
-    // Navigator.push(context, MaterialPageRoute(...))
   }
   
   static Future<void> _sendTokenToServer(String? token) async {
     if (token != null) {
-      // ارسال token به سرور برای ذخیره
-      print('ارسال FCM Token به سرور: $token');
-      // await http.post(...);
+      try {
+        print('🚀 ارسال FCM Token به سرور: ${token.substring(0, 20)}...');
+        
+        final response = await http.post(
+          Uri.parse('http://178.63.171.244:8000/user/2/fcm_token'), // 🔥 آدرس سرور رو اصلاح کنید
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fcm_token': token}),
+        );
+        
+        if (response.statusCode == 200) {
+          print('✅ FCM Token با موفقیت به سرور ارسال شد');
+        } else {
+          print('❌ خطا در ارسال FCM Token: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        print('❌ خطا در ارسال FCM Token به سرور: $e');
+      }
     }
   }
   
@@ -76,11 +86,11 @@ class NotificationService {
   
   static Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
-    print('عضویت در تاپیک: $topic');
+    print('📢 عضویت در تاپیک: $topic');
   }
   
   static Future<void> unsubscribeFromTopic(String topic) async {
     await _messaging.unsubscribeFromTopic(topic);
-    print('لغو عضویت از تاپیک: $topic');
+    print('📢 لغو عضویت از تاپیک: $topic');
   }
 }
