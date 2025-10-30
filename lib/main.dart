@@ -1,36 +1,45 @@
 import 'package:flutter/material.dart';
-import 'screens/main_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:first_hidden_app/services/api_service.dart';
+import 'package:first_hidden_app/services/notification_service.dart';
+import 'package:first_hidden_app/pages/login_page.dart';
+import 'package:first_hidden_app/pages/dashboard_page.dart';
 
-// 👇 شناسه کاربری ثابت (همان عددی که در whitelist.json سرور است)
-const String FIXED_USER_ID = "123456789"; // ← اینجا شناسه واقعی خودت را بگذار
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  await NotificationService().init();
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Alert_X',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => UserSettings()),
+      ],
+      child: MaterialApp(
+        title: 'اولین هیدن',
+        theme: ThemeData(
+          primaryColor: Color(0xFF2196F3),
+          primaryColorDark: Color(0xFF1976D2),
+          accentColor: Color(0xFFFF9800),
+          backgroundColor: Color(0xFF121212),
+          scaffoldBackgroundColor: Color(0xFF121212),
+          cardColor: Color(0xFF1E1E1E),
+          textTheme: TextTheme(
+            bodyLarge: TextStyle(color: Colors.white, fontFamily: 'Vazir'),
+            bodyMedium: TextStyle(color: Color(0xFFB0B0B0), fontFamily: 'Vazir'),
+            titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Vazir'),
+          ),
+          appBarTheme: AppBarTheme(
+            backgroundColor: Color(0xFF1E1E1E),
+            elevation: 0,
+          ),
+        ),
+        home: LoginPage(),
       ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      ),
-      themeMode: ThemeMode.light,
-      home: MainScreen(userId: FIXED_USER_ID),
-      locale: const Locale('fa', 'IR'),
-      supportedLocales: const [Locale('fa', 'IR')],
     );
   }
 }
