@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import 'home_screen.dart'; // اضافه کردن این import
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
