@@ -73,7 +73,7 @@ class SignalsScreen extends StatelessWidget {
                     itemCount: signalProvider.signals.length,
                     itemBuilder: (context, index) {
                       final signal = signalProvider.signals[index];
-                      return _buildSignalCard(signal);
+                      return _buildSignalCard(context, signal);
                     },
                   ),
           ),
@@ -82,7 +82,7 @@ class SignalsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSignalCard(Signal signal) {
+  Widget _buildSignalCard(BuildContext context, Signal signal) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       elevation: 2,
@@ -107,14 +107,18 @@ class SignalsScreen extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(width: 8),
-            Text(
-              signal.timeframe,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                backgroundColor: Colors.grey.shade200,
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                signal.timeframe,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
               ),
             ),
           ],
@@ -133,7 +137,7 @@ class SignalsScreen extends StatelessWidget {
         trailing: IconButton(
           icon: const Icon(Icons.copy, size: 20),
           onPressed: () {
-            _copySignalInfo(signal);
+            _copySignalInfo(context, signal);
           },
           tooltip: 'کپی اطلاعات',
         ),
@@ -141,7 +145,7 @@ class SignalsScreen extends StatelessWidget {
     );
   }
 
-  void _copySignalInfo(Signal signal) {
+  void _copySignalInfo(BuildContext context, Signal signal) {
     final copyText = '${signal.pair} - ${signal.timeframe} - ${signal.signalType}';
     
     ScaffoldMessenger.of(context).showSnackBar(
