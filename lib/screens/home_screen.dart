@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/signal_provider.dart';
+import '../widgets/signal_popup.dart';
 import 'login_screen.dart';
 import 'signals_screen.dart';
 import '../widgets/main_menu.dart';
@@ -36,9 +37,74 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showSignalNotification(Signal signal) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              signal.signalType == 'BUY' ? Icons.arrow_upward : Icons.arrow_downward,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'سیگنال جدید: ${signal.pair}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '${signal.timeframe} - ${signal.displaySignalType}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: signal.signalType == 'BUY' ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'مشاهده',
+          textColor: Colors.white,
+          onPressed: () {
+            _showSignalPopup(signal);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showSignalPopup(Signal signal) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => SignalPopup(
+        signal: signal,
+        onClose: () {
+          Navigator.of(context).pop();
+          context.read<SignalProvider>().clearLatestSignal();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
+    final signalProvider = Provider.of<SignalProvider>(context);
+
+    if (signalProvider.latestSignal != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showSignalNotification(signalProvider.latestSignal!);
+      });
+    }
 
     if (settingsProvider.userId == null || settingsProvider.userSettings == null) {
       return const LoginScreen();
@@ -50,6 +116,22 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          if (signalProvider.latestSignal != null)
+            Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Text(
+                '!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -71,8 +153,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'منوی اصلی',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'سیگنال‌ها',
+            icon: Icon(Icons.photo_library),
+            label: 'گالری تصاویر',
           ),
         ],
       ),
