@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import 'home_screen.dart'; // اضافه کردن این import
+import '../services/notification_service.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,36 +14,43 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _userIdController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMessage;
 
   Future<void> _login() async {
-    if (_userIdController.text.isEmpty) return;
+    if (_userIdController.text.isEmpty) {
+      setState(() => _errorMessage = 'لطفاً شناسه کاربری را وارد کنید');
+      return;
+    }
     
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     
     try {
       final provider = Provider.of<SettingsProvider>(context, listen: false);
+      
+      // اول تنظیمات کاربر را دریافت کن
       await provider.loadUserSettings(_userIdController.text);
       
       if (provider.userSettings != null) {
+        // اگر کاربر در وایت لیست هست، FCM Token را ارسال کن
+        await NotificationService.sendTokenAfterLogin(_userIdController.text);
+        
+        // به صفحه اصلی برو
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ برای دسترسی با آیدی Masood_Fx ارتباط بگیرید'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() => _errorMessage = '❌ کاربر در وایت لیست وجود ندارد');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('خطا در ارتباط با سرور: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (e.toString().contains('another device')) {
+        setState(() => _errorMessage = '❌ این کاربر از قبل در دستگاه دیگری فعال است\n\nبرای دسترسی جدید، باید از دستگاه قبلی خارج شوید');
+      } else {
+        setState(() => _errorMessage = '❌ خطا در ارتباط با سرور: $e');
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -76,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               
               const Text(
-                'برای استفاده از ربات، شناسه کاربری خود را وارد کنید',
+                'شناسه کاربری خود را وارد کنید\n(فقط یک دستگاه مجاز است)',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -87,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
               
               TextField(
                 controller: _userIdController,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.text,
                 decoration: InputDecoration(
                   labelText: 'User ID',
                   prefixIcon: const Icon(Icons.person),
@@ -96,7 +104,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
+                  errorText: _errorMessage,
                 ),
+                onChanged: (_) {
+                  if (_errorMessage != null) {
+                    setState(() => _errorMessage = null);
+                  }
+                },
               ),
               const SizedBox(height: 24),
               
@@ -132,12 +146,56 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               
-              const Text(
-                'برای دریافت شناسه کاربری با @Masood_Fx ارتباط بگیرید',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error, color: Colors.red.shade700, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.orange, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'هر کاربر فقط می‌تواند روی یک دستگاه فعال باشد',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
