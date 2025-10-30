@@ -23,6 +23,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     final provider = Provider.of<SettingsProvider>(context, listen: false);
     final userModes = provider.userSettings?.modes ?? {};
     
+    // استفاده درست از TradingMode.allModes
     _modes = TradingMode.allModes.map((mode) {
       return mode.copyWith(
         isSelected: userModes[mode.code] ?? false,
@@ -102,10 +103,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         trailing: mode.code == 'A1' || mode.code == 'A2'
             ? Radio<String>(
                 value: mode.code,
-                groupValue: _modes
-                    .where((m) => m.code == 'A1' || m.code == 'A2')
-                    .firstWhere((m) => m.isSelected)
-                    .code,
+                groupValue: _getSelectedAMode(),
                 onChanged: (value) => _toggleMode(value!),
               )
             : Checkbox(
@@ -115,6 +113,14 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         onTap: () => _toggleMode(mode.code),
       ),
     );
+  }
+
+  String _getSelectedAMode() {
+    final aMode = _modes.firstWhere(
+      (mode) => (mode.code == 'A1' || mode.code == 'A2') && mode.isSelected,
+      orElse: () => TradingMode.allModes.firstWhere((mode) => mode.code == 'A1'),
+    );
+    return aMode.code;
   }
 
   Widget _buildModeSection(String title, List<TradingMode> modes) {
@@ -148,86 +154,88 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: Colors.blue.shade50,
-              child: const Column(
+      body: _modes.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'راهنمای انتخاب مود:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.blue.shade50,
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'راهنمای انتخاب مود:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          '• A1 و A2: فقط یکی می‌تواند فعال باشد (Radio Button)\n'
+                          '• مودهای B تا G: می‌توان چندین مورد را انتخاب کرد (Checkbox)\n'
+                          '• 🟢 = فعال، 🔴 = غیرفعال',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• A1 و A2: فقط یکی می‌تواند فعال باشد (Radio Button)\n'
-                    '• مودهای B تا G: می‌توان چندین مورد را انتخاب کرد (Checkbox)\n'
-                    '• 🟢 = فعال، 🔴 = غیرفعال',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  const SizedBox(height: 16),
+                  _buildModeSection('مودهای اصلی (انتخاب یکی)', aModes),
+                  const SizedBox(height: 16),
+                  _buildModeSection('مودهای تکمیلی (انتخاب چندگانه)', otherModes),
+                  const SizedBox(height: 24),
+                  _buildSelectionSummary(),
                 ],
               ),
             ),
+    );
+  }
 
-            const SizedBox(height: 16),
-
-            _buildModeSection('مودهای اصلی (انتخاب یکی)', aModes),
-
-            const SizedBox(height: 16),
-
-            _buildModeSection('مودهای تکمیلی (انتخاب چندگانه)', otherModes),
-
-            const SizedBox(height: 24),
-
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'خلاصه انتخاب‌های شما:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: _modes
-                          .where((mode) => mode.isSelected)
-                          .map((mode) => Chip(
-                                label: Text(mode.name),
-                                backgroundColor: Colors.green.shade100,
-                              ))
-                          .toList(),
-                    ),
-                    if (_modes.where((mode) => mode.isSelected).isEmpty)
-                      const Text(
-                        'هیچ مودی انتخاب نشده است',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                  ],
-                ),
+  Widget _buildSelectionSummary() {
+    final selectedModes = _modes.where((mode) => mode.isSelected).toList();
+    
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'خلاصه انتخاب‌های شما:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 8),
+            if (selectedModes.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: selectedModes
+                    .map((mode) => Chip(
+                          label: Text(mode.name),
+                          backgroundColor: Colors.green.shade100,
+                        ))
+                    .toList(),
+              )
+            else
+              const Text(
+                'هیچ مودی انتخاب نشده است',
+                style: TextStyle(color: Colors.grey),
+              ),
           ],
         ),
       ),
