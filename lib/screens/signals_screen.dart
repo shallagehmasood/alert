@@ -65,7 +65,7 @@ class _SignalsScreenState extends State<SignalsScreen> {
       );
       
       final result = await GallerySaver.saveImage(
-        Uint8List.fromList(imageBytes),
+        imageBytes,  // ✅ بدون Uint8List.fromList
         albumName: 'First Hidden Bot'
       );
       
