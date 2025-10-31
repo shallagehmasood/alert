@@ -27,11 +27,6 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getString('user_id');
     
-    // اگر کاربر لاگین کرده، وضعیت را چک کن
-    if (_currentUserId != null && _fcmToken != null) {
-      await _checkAndUpdateToken(_currentUserId!);
-    }
-    
     // تنظیم دسترسی‌ها
     NotificationSettings settings = await _messaging.requestPermission(
       alert: true,
@@ -60,81 +55,37 @@ class NotificationService {
     return deviceId;
   }
   
-  // چک کردن و آپدیت توکن
-  static Future<void> _checkAndUpdateToken(String userId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://178.63.171.244:8000/user/$userId/device_status'),
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final registeredDeviceId = data['device_id'];
-        
-        if (registeredDeviceId == _deviceId) {
-          // همین دستگاه - آپدیت توکن
-          await _sendTokenToServer(userId, _fcmToken!);
-        } else {
-          // دستگاه متفاوت - کاربر باید مجدد لاگین کند
-          await _logoutLocally();
-        }
-      }
-    } catch (e) {
-      print('❌ خطا در چک کردن وضعیت دستگاه: $e');
-    }
-  }
-  
-  // متد جدید برای ارسال توکن پس از لاگین
+  // متد جدید برای ارسال توکن پس از لاگین - بدون بررسی محدودیت
   static Future<void> sendTokenAfterLogin(String userId) async {
     _currentUserId = userId;
     
-    if (_fcmToken != null) {
-      await _sendTokenToServer(userId, _fcmToken!);
+    if (_fcmToken != null && _deviceId != null) {
+      try {
+        final response = await http.post(
+          Uri.parse('http://178.63.171.244:8000/user/$userId/fcm_token'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'fcm_token': _fcmToken!,
+            'device_id': _deviceId!,
+            'platform': 'android',
+            'app_version': '1.0.0',
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+        );
+        
+        if (response.statusCode == 200) {
+          print('✅ FCM Token با موفقیت ثبت شد');
+        } else {
+          print('❌ خطا در ارسال FCM Token: ${response.statusCode}');
+          // ادامه می‌دهیم حتی اگر خطا داشته باشد - کاربر می‌تواند از برنامه استفاده کند
+        }
+      } catch (e) {
+        print('❌ خطا در ارسال FCM Token: $e');
+        // ادامه می‌دهیم حتی اگر خطا داشته باشد
+      }
     } else {
-      // اگر توکن موجود نیست، مجدد دریافت کن
-      _fcmToken = await _messaging.getToken();
-      if (_fcmToken != null) {
-        await _sendTokenToServer(userId, _fcmToken!);
-      }
+      print('⚠️ FCM Token یا Device ID موجود نیست');
     }
-  }
-  
-  static Future<void> _sendTokenToServer(String userId, String token) async {
-    try {
-      print('🚀 ارسال FCM Token برای کاربر $userId از دستگاه $_deviceId');
-      
-      final response = await http.post(
-        Uri.parse('http://178.63.171.244:8000/user/$userId/fcm_token'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'fcm_token': token,
-          'device_id': _deviceId,
-          'platform': 'android',
-          'app_version': '1.0.0',
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      );
-      
-      if (response.statusCode == 200) {
-        print('✅ FCM Token با موفقیت ثبت شد');
-      } else if (response.statusCode == 409) {
-        print('❌ کاربر از قبل در دستگاه دیگری فعال است');
-        throw Exception('User already active on another device');
-      } else {
-        print('❌ خطا در ارسال FCM Token: ${response.statusCode}');
-        throw Exception('Failed to send FCM token');
-      }
-    } catch (e) {
-      print('❌ خطا در ارسال FCM Token: $e');
-      throw e;
-    }
-  }
-  
-  // لاگاوت محلی
-  static Future<void> _logoutLocally() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    _currentUserId = null;
   }
   
   static void _handleForegroundMessage(RemoteMessage message) {
