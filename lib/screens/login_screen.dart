@@ -30,27 +30,20 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final provider = Provider.of<SettingsProvider>(context, listen: false);
       
-      // اول تنظیمات کاربر را دریافت کن
+      // اول تنظیمات کاربر را دریافت کن - کاربر جدید به صورت خودکار اضافه می‌شود
       await provider.loadUserSettings(_userIdController.text);
       
-      if (provider.userSettings != null) {
-        // اگر کاربر در وایت لیست هست، FCM Token را ارسال کن
-        await NotificationService.sendTokenAfterLogin(_userIdController.text);
-        
-        // به صفحه اصلی برو
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      } else {
-        setState(() => _errorMessage = '❌ کاربر در وایت لیست وجود ندارد');
-      }
+      // FCM Token را ارسال کن - بدون بررسی محدودیت
+      await NotificationService.sendTokenAfterLogin(_userIdController.text);
+      
+      // به صفحه اصلی برو
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+      
     } catch (e) {
-      if (e.toString().contains('another device')) {
-        setState(() => _errorMessage = '❌ این کاربر از قبل در دستگاه دیگری فعال است\n\nبرای دسترسی جدید، باید از دستگاه قبلی خارج شوید');
-      } else {
-        setState(() => _errorMessage = '❌ خطا در ارتباط با سرور: $e');
-      }
+      setState(() => _errorMessage = '❌ خطا در ارتباط با سرور: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -84,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               
               const Text(
-                'شناسه کاربری خود را وارد کنید\n(فقط یک دستگاه مجاز است)',
+                'شناسه کاربری خود را وارد کنید\n(هر تعداد کاربر می‌توانند استفاده کنند)',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -177,19 +170,19 @@ class _LoginScreenState extends State<LoginScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border: Border.all(color: Colors.green.shade200),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info, color: Colors.orange, size: 20),
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'هر کاربر فقط می‌تواند روی یک دستگاه فعال باشد',
+                        'سیستم بدون محدودیت - هر تعداد کاربر می‌توانند استفاده کنند',
                         style: TextStyle(
-                          color: Colors.orange,
+                          color: Colors.green,
                           fontSize: 12,
                         ),
                         textAlign: TextAlign.right,
