@@ -19,7 +19,7 @@ dependencies:
   firebase_core: ^2.24.0
   firebase_messaging: ^14.7.0
   photo_view: ^0.14.0        # برای زوم روی تصاویر
-  image_gallery_saver: ^2.1.1
+  image_gallery_saver: ^2.0.3
   permission_handler: ^11.0.1
   path_provider: ^2.1.1
   
