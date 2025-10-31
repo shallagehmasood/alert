@@ -27,7 +27,17 @@
             android:value="2" />
     </application>
 
+    <!-- مجوزهای شبکه -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- ✅ مجوزهای جدید برای ذخیره تصاویر -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    
+    <!-- برای Android 10 و بالاتر -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
+                     android:minSdkVersion="30" 
+                     tools:ignore="ScopedStorage" />
 
     <queries>
         <intent>
