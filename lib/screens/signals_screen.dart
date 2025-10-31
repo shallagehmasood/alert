@@ -1,5 +1,3 @@
-import 'package:image_gallery_saver/image_gallery_saver.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
@@ -9,18 +7,6 @@ Future<void> _saveImageToGallery(UserImage image) async {
   final settingsProvider = context.read<SettingsProvider>();
   
   try {
-    // درخواست مجوز
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-      if (!status.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('دسترسی به حافظه داده نشد')),
-        );
-        return;
-      }
-    }
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -40,31 +26,37 @@ Future<void> _saveImageToGallery(UserImage image) async {
       image.filename
     );
     
-    // ذخیره در گالری
-    final result = await ImageGallerySaver.saveImage(
-      Uint8List.fromList(imageBytes),
-      quality: 100,
-      name: '${image.pair}_${image.timeframe}_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    // ذخیره در پوشه Downloads
+    final directory = await getDownloadsDirectory();
+    final saveDir = Directory('${directory?.path}/FirstHiddenBot');
+    if (!await saveDir.exists()) {
+      await saveDir.create(recursive: true);
+    }
+    
+    final fileName = '${image.pair}_${image.timeframe}_${DateTime.now().millisecondsSinceEpoch}.png';
+    final filePath = '${saveDir.path}/$fileName';
+    await File(filePath).writeAsBytes(imageBytes);
     
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     
-    if (result['isSuccess'] == true) {
-      imageProvider.markImageAsSaved(image.filename);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ تصویر با موفقیت در گالری ذخیره شد'),
-          duration: Duration(seconds: 2),
+    imageProvider.markImageAsSaved(image.filename);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('✅ تصویر با موفقیت ذخیره شد'),
+            Text(
+              'مسیر: FirstHiddenBot/$fileName',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
         ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ خطا در ذخیره تصویر'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+        duration: const Duration(seconds: 4),
+      ),
+    );
+    
   } catch (e) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -75,3 +67,22 @@ Future<void> _saveImageToGallery(UserImage image) async {
     );
   }
 }
+
+// همچنین در _buildImageCard، آیکون ذخیره را به این صورت تغییر دهید:
+Container(
+  decoration: BoxDecoration(
+    color: Colors.black54,
+    shape: BoxShape.circle,
+  ),
+  child: IconButton(
+    icon: Icon(
+      image.isSavedLocally ? Icons.check : Icons.save_alt,
+      color: Colors.white,
+      size: 18,
+    ),
+    onPressed: image.isSavedLocally 
+        ? null 
+        : () => _saveImageToGallery(image),
+    tooltip: 'ذخیره در حافظه',
+  ),
+),
