@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/notification_service.dart';
 import '../models/user_settings.dart';
 
 class SettingsProvider with ChangeNotifier {
@@ -14,18 +15,39 @@ class SettingsProvider with ChangeNotifier {
 
   final ApiService _apiService = ApiService();
 
-  Future<void> loadUserSettings(String userId) async {
+  SettingsProvider() {
+    _initializeUser();
+  }
+
+  Future<void> _initializeUser() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      _userId = userId;
-      _userSettings = await _apiService.getUserSettings(userId);
-      await StorageService.saveUserId(userId);
+      // استفاده از شناسه دستگاه به عنوان userId
+      _userId = NotificationService.deviceId;
+      
+      if (_userId != null) {
+        // بارگذاری تنظیمات کاربر
+        _userSettings = await _apiService.getUserSettings(_userId!);
+        await StorageService.saveUserId(_userId!);
+        
+        print('✅ کاربر با شناسه $_userId وارد شد');
+      }
     } catch (e) {
+      // اگر کاربر در وایت لیست نبود، از تنظیمات محلی استفاده کن
       final localSettings = await StorageService.getUserSettings();
       if (localSettings != null) {
         _userSettings = UserSettings.fromJson(localSettings);
+        print('⚠️ استفاده از تنظیمات محلی');
+      } else {
+        // ایجاد تنظیمات پیش‌فرض
+        _userSettings = UserSettings(
+          timeframes: {},
+          modes: {},
+          sessions: {},
+        );
+        print('✅ ایجاد تنظیمات پیش‌فرض برای کاربر جدید');
       }
     } finally {
       _isLoading = false;
