@@ -1,4 +1,4 @@
-name: Build Release APK for alert_x
+1name: Build Release APK for alert_x
  
 on:
   push:
