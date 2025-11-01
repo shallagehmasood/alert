@@ -25,6 +25,10 @@ class SignalProvider with ChangeNotifier {
 
   static const String baseUrl = "http://178.63.171.244:8000";
 
+  SignalProvider() {
+    print('✅ SignalProvider initialized');
+  }
+
   void clearLatestSignal() {
     _latestSignal = null;
     notifyListeners();
@@ -318,6 +322,161 @@ class SignalProvider with ChangeNotifier {
     }
     
     return filtered;
+  }
+
+  // متد برای بارگذاری تصاویر از سرور
+  Future<List<Signal>> loadImagesFromServer(String userId, {int skip = 0, int limit = 50}) async {
+    try {
+      print('🖼️ در حال دریافت تصاویر از سرور برای کاربر $userId');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId/images?skip=$skip&limit=$limit'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final imagesData = data['images'] as List;
+        
+        print('✅ ${imagesData.length} تصویر از سرور دریافت شد');
+        
+        List<Signal> serverSignals = [];
+        
+        for (var imgData in imagesData) {
+          try {
+            // ساخت Signal از داده‌های تصویر سرور
+            final signal = Signal(
+              pair: imgData['pair'] ?? '',
+              timeframe: imgData['timeframe'] ?? '',
+              signalType: imgData['signal_type'] ?? 'BUY',
+              modeBits: imgData['mode_bits'] ?? '',
+              timestamp: DateTime.parse(imgData['created_at'] ?? DateTime.now().toIso8601String()),
+              imageData: null, // داده تصویر بعداً لود می‌شود
+            );
+            
+            serverSignals.add(signal);
+          } catch (e) {
+            print('❌ خطا در پردازش تصویر از سرور: $e');
+          }
+        }
+        
+        return serverSignals;
+      } else {
+        print('❌ خطا در دریافت تصاویر از سرور: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ خطا در اتصال برای دریافت تصاویر از سرور: $e');
+      return [];
+    }
+  }
+
+  // متد برای دریافت تصویر خاص از سرور
+  Future<Uint8List?> loadImageData(String userId, String filename) async {
+    try {
+      print('📥 در حال دریافت داده تصویر: $filename');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId/image/$filename'),
+      );
+
+      if (response.statusCode == 200) {
+        print('✅ داده تصویر دریافت شد: $filename');
+        return response.bodyBytes;
+      } else {
+        print('❌ خطا در دریافت داده تصویر: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ خطا در اتصال برای دریافت داده تصویر: $e');
+      return null;
+    }
+  }
+
+  // متد برای حذف تصویر از سرور (فقط از لیست)
+  Future<bool> deleteImageFromServer(String userId, String filename) async {
+    try {
+      print('🗑️ در حال حذف تصویر از سرور: $filename');
+      
+      final response = await http.delete(
+        Uri.parse('$baseUrl/user/$userId/image/$filename'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ تصویر از سرور حذف شد: $filename');
+        return data['status'] == 'success';
+      } else {
+        print('❌ خطا در حذف تصویر از سرور: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ خطا در اتصال برای حذف تصویر از سرور: $e');
+      return false;
+    }
+  }
+
+  // متد برای همگام‌سازی سیگنال‌ها با سرور
+  Future<void> syncWithServer(String userId) async {
+    try {
+      print('🔄 شروع همگام‌سازی با سرور برای کاربر $userId');
+      
+      // دریافت تصاویر از سرور
+      final serverSignals = await loadImagesFromServer(userId, limit: 100);
+      
+      // پیدا کردن سیگنال‌های جدید از سرور که در اپلیکیشن نیستند
+      final newSignals = serverSignals.where((serverSignal) {
+        return !_signals.any((localSignal) =>
+          localSignal.pair == serverSignal.pair &&
+          localSignal.timeframe == serverSignal.timeframe &&
+          localSignal.timestamp.difference(serverSignal.timestamp).inSeconds.abs() < 10
+        );
+      }).toList();
+      
+      // اضافه کردن سیگنال‌های جدید
+      for (var signal in newSignals) {
+        _addSignal(signal);
+      }
+      
+      print('✅ همگام‌سازی کامل شد. ${newSignals.length} سیگنال جدید اضافه شد');
+      
+    } catch (e) {
+      print('❌ خطا در همگام‌سازی با سرور: $e');
+    }
+  }
+
+  // متد برای بررسی سلامت اتصال
+  Future<bool> checkServerHealth() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ سرور در دسترس نیست: $e');
+      return false;
+    }
+  }
+
+  // متد برای دریافت اطلاعات دیباگ
+  Future<Map<String, dynamic>> getDebugInfo(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/debug/status'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'error': 'Failed to get debug info'};
+      }
+    } catch (e) {
+      return {'error': 'Connection failed: $e'};
+    }
   }
 
   @override
