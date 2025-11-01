@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/image_provider.dart' as MyImageProvider;
+import 'providers/signal_provider.dart';
 import 'screens/home_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/notification_service.dart';
 
@@ -21,7 +22,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
-        ChangeNotifierProvider(create: (context) => MyImageProvider.ImageProvider()),
+        ChangeNotifierProvider(create: (context) => SignalProvider()),
       ],
       child: MaterialApp(
         title: 'First Hidden Bot',
