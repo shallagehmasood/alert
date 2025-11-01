@@ -23,9 +23,17 @@ class NotificationService {
     _fcmToken = await _messaging.getToken();
     print('🎯 FCM Token: $_fcmToken');
     
-    // دریافت userId از SharedPreferences
+    // استفاده از شناسه دستگاه به عنوان userId
+    _currentUserId = _deviceId;
+    
+    // ذخیره userId در SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    _currentUserId = prefs.getString('user_id');
+    await prefs.setString('user_id', _currentUserId!);
+    
+    // ارسال توکن به سرور
+    if (_fcmToken != null) {
+      await _sendTokenToServer(_currentUserId!, _fcmToken!);
+    }
     
     // تنظیم دسترسی‌ها
     NotificationSettings settings = await _messaging.requestPermission(
@@ -55,36 +63,30 @@ class NotificationService {
     return deviceId;
   }
   
-  // متد جدید برای ارسال توکن پس از لاگین - بدون بررسی محدودیت
-  static Future<void> sendTokenAfterLogin(String userId) async {
-    _currentUserId = userId;
-    
-    if (_fcmToken != null && _deviceId != null) {
-      try {
-        final response = await http.post(
-          Uri.parse('http://178.63.171.244:8000/user/$userId/fcm_token'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'fcm_token': _fcmToken!,
-            'device_id': _deviceId!,
-            'platform': 'android',
-            'app_version': '1.0.0',
-            'timestamp': DateTime.now().toIso8601String(),
-          }),
-        );
-        
-        if (response.statusCode == 200) {
-          print('✅ FCM Token با موفقیت ثبت شد');
-        } else {
-          print('❌ خطا در ارسال FCM Token: ${response.statusCode}');
-          // ادامه می‌دهیم حتی اگر خطا داشته باشد - کاربر می‌تواند از برنامه استفاده کند
-        }
-      } catch (e) {
-        print('❌ خطا در ارسال FCM Token: $e');
-        // ادامه می‌دهیم حتی اگر خطا داشته باشد
+  // ارسال توکن به سرور
+  static Future<void> _sendTokenToServer(String userId, String token) async {
+    try {
+      print('🚀 ارسال FCM Token برای کاربر $userId از دستگاه $_deviceId');
+      
+      final response = await http.post(
+        Uri.parse('http://178.63.171.244:8000/user/$userId/fcm_token'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fcm_token': token,
+          'device_id': _deviceId,
+          'platform': 'android',
+          'app_version': '1.0.0',
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        print('✅ FCM Token با موفقیت ثبت شد');
+      } else {
+        print('❌ خطا در ارسال FCM Token: ${response.statusCode}');
       }
-    } else {
-      print('⚠️ FCM Token یا Device ID موجود نیست');
+    } catch (e) {
+      print('❌ خطا در ارسال FCM Token: $e');
     }
   }
   
