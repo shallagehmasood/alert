@@ -1,17 +1,14 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class NotificationService {
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   
   static Function(Map<String, dynamic>)? onNewImage;
   static Function()? onForceLogout;
 
-  // راه‌اندازی کامل نوتیفیکیشن‌ها
+  // راه‌اندازی نوتیفیکیشن‌ها - فقط FCM
   static Future<void> initialize() async {
     try {
       // درخواست مجوزهای لازم
@@ -19,44 +16,9 @@ class NotificationService {
         alert: true,
         badge: true,
         sound: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        announcement: false,
       );
       
       print('Notification permissions: ${settings.authorizationStatus}');
-
-      // راه‌اندازی local notifications
-      const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
-      
-      const InitializationSettings initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      );
-
-      await _localNotifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: (NotificationResponse response) {
-          _onNotificationClick(response.payload);
-        },
-      );
-
-      // ایجاد کانال برای اندروید
-      const AndroidNotificationChannel channel = AndroidNotificationChannel(
-        'image_channel',
-        'Image Notifications',
-        description: 'Channel for image alerts',
-        importance: Importance.high,
-        playSound: true,
-      );
-
-      await _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
 
       // تنظیم foreground handler
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -120,106 +82,20 @@ class NotificationService {
       case 'direct_image':
         _handleNewImage(data);
         break;
-      
-      default:
-        _showBasicNotification(message);
     }
   }
 
   // مدیریت خروج اجباری
   static void _handleForceLogout(Map<String, dynamic> data) {
     print('🚪 Force logout received');
-    
-    // نمایش نوتیفیکیشن
-    _showNotification(
-      'خروج اجباری',
-      data['message'] ?? 'از دستگاه دیگری با این حساب وارد شدید',
-      data,
-    );
-
-    // فراخوانی callback
     onForceLogout?.call();
   }
 
   // مدیریت تصویر جدید
   static void _handleNewImage(Map<String, dynamic> data) {
     final filename = data['filename'] ?? 'Unknown';
-    final imageUrl = data['image_url'];
-    
     print('🖼️ New image received: $filename');
-
-    // نمایش نوتیفیکیشن
-    _showNotification(
-      '📸 تصویر جدید',
-      'تصویر $filename آماده است',
-      data,
-    );
-
-    // فراخوانی callback برای آپدیت UI
     onNewImage?.call(data);
-  }
-
-  // نمایش نوتیفیکیشن پایه
-  static void _showBasicNotification(RemoteMessage message) {
-    _showNotification(
-      message.notification?.title ?? 'پیام جدید',
-      message.notification?.body ?? '',
-      message.data,
-    );
-  }
-
-  // نمایش نوتیفیکیشن محلی
-  static Future<void> _showNotification(String title, String body, Map<String, dynamic> data) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'image_channel',
-      'Image Notifications',
-      channelDescription: 'Channel for image alerts',
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-      showWhen: true,
-    );
-
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    const NotificationDetails details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    try {
-      await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title,
-        body,
-        details,
-        payload: json.encode(data),
-      );
-      print('✅ Local notification shown: $title');
-    } catch (e) {
-      print('❌ Error showing local notification: $e');
-    }
-  }
-
-  // مدیریت کلیک روی نوتیفیکیشن
-  static void _onNotificationClick(String? payload) {
-    if (payload == null) return;
-    
-    try {
-      final data = json.decode(payload);
-      final type = data['type'];
-      
-      if (type == 'new_image') {
-        onNewImage?.call(data);
-      }
-    } catch (e) {
-      print('Error parsing notification payload: $e');
-    }
   }
 
   // ارسال FCM token به سرور
@@ -260,22 +136,5 @@ class NotificationService {
   }) {
     onNewImage = newImageCallback;
     onForceLogout = forceLogoutCallback;
-  }
-
-  // پاک کردن همه نوتیفیکیشن‌ها
-  static Future<void> clearAllNotifications() async {
-    await _localNotifications.cancelAll();
-  }
-
-  // تنظیم موضوع نوتیفیکیشن
-  static Future<void> subscribeToTopic(String topic) async {
-    await _firebaseMessaging.subscribeToTopic(topic);
-    print('✅ Subscribed to topic: $topic');
-  }
-
-  // لغو موضوع نوتیفیکیشن
-  static Future<void> unsubscribeFromTopic(String topic) async {
-    await _firebaseMessaging.unsubscribeFromTopic(topic);
-    print('✅ Unsubscribed from topic: $topic');
   }
 }
