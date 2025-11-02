@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'services/notification_service.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
