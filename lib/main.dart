@@ -1,360 +1,237 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'dart:convert';
-import 'services/notification_service.dart';
+import 'dart:math';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(MyApp());
+void main() {
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Photo Alert',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
-      home: MainWrapper(),
-      debugShowCheckedModeBanner: false,
+      title: 'نقشه و چت زنده',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const LocationChatPage(),
     );
   }
 }
 
-class MainWrapper extends StatefulWidget {
+class LocationChatPage extends StatefulWidget {
+  const LocationChatPage({super.key});
+
   @override
-  _MainWrapperState createState() => _MainWrapperState();
+  State<LocationChatPage> createState() => _LocationChatPageState();
 }
 
-class _MainWrapperState extends State<MainWrapper> {
-  String? _userId;
-  bool _isLoading = true;
+class _LocationChatPageState extends State<LocationChatPage> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _msgController = TextEditingController();
+  IOWebSocketChannel? channel;
+  String? myName;
+  Color? myColor;
+  List<String> messages = [];
+  Map<String, LatLng> userLocations = {};
+  Map<String, Color> userColors = {};
+  List<String> onlineUsers = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthStatus();
-  }
+  Future<void> _startApp() async {
+    myName = _nameController.text.trim();
+    if (myName!.isEmpty) return;
 
-  _checkAuthStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userId = prefs.getString('user_id');
-      _isLoading = false;
+    // انتخاب رنگ تصادفی برای هر کاربر
+    myColor = Colors.primaries[Random().nextInt(Colors.primaries.length)];
+
+    channel = IOWebSocketChannel.connect("ws://178.63.171.244:5000");
+
+    channel!.stream.listen((event) {
+      final data = jsonDecode(event);
+
+      if (data["type"] == "chat") {
+        setState(() {
+          messages.add("${data['name']}: ${data['message']}");
+        });
+      }
+
+      if (data["type"] == "location") {
+        setState(() {
+          userLocations[data["name"]] = LatLng(data["lat"], data["lon"]);
+          userColors[data["name"]] =
+              Color(int.parse(data["color"].toString())); // رنگ اختصاصی
+          onlineUsers = List<String>.from(data["onlineUsers"]);
+        });
+      }
+
+      if (data["type"] == "offline") {
+        setState(() {
+          userLocations.remove(data["name"]);
+          userColors.remove(data["name"]);
+          onlineUsers = List<String>.from(data["onlineUsers"]);
+        });
+      }
     });
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('در حال بارگذاری...'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return _userId == null ? LoginPage() : HomePage();
-  }
-}
-
-class LoginPage extends StatefulWidget {
-  @override
-  _LoginPageState createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _userIdController = TextEditingController();
-  bool _isLoading = false;
-
-  _login() async {
-    if (_userIdController.text.isEmpty) {
-      _showError('لطفاً شناسه را وارد کنید');
+    LocationPermission permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
       return;
     }
 
-    setState(() => _isLoading = true);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_id', _userIdController.text);
-      
-      // راه‌اندازی نوتیفیکیشن‌ها پس از لاگین
-      await NotificationService.initialize();
-      
-      // اطلاع به سرور
-      final fcmToken = await NotificationService.getFcmToken();
-      if (fcmToken != null) {
-        await http.post(
-          Uri.parse('http://178.63.171.244:8000/login'),
-          body: {
-            'user_id': _userIdController.text,
-            'fcm_token': fcmToken,
-          },
-        );
-      }
-
-      // رفرش صفحه اصلی
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => HomePage()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      _showError('خطا در ورود: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+    Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
       ),
-    );
+    ).listen((Position pos) {
+      final data = {
+        "type": "location",
+        "name": myName,
+        "lat": pos.latitude,
+        "lon": pos.longitude,
+        "color": myColor!.value, // ارسال رنگ اختصاصی
+      };
+      channel!.sink.add(jsonEncode(data));
+    });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.photo_library, size: 80, color: Colors.blue),
-              SizedBox(height: 20),
-              Text('Photo Alert', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              Text('ورود به سیستم', style: TextStyle(fontSize: 16, color: Colors.grey)),
-              SizedBox(height: 40),
-              TextField(
-                controller: _userIdController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  labelText: 'شناسه ۳ رقمی',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: Icon(Icons.security),
-                ),
-                maxLength: 3,
-                style: TextStyle(fontSize: 18),
-              ),
-              SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: _isLoading
-                    ? Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: Text('ورود', style: TextStyle(fontSize: 18, color: Colors.white)),
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class HomePage extends StatefulWidget {
-  @override
-  _HomePageState createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
-  List<dynamic> _images = [];
-  bool _isLoading = true;
-  String? _userId;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initialize();
+  void _sendMessage() {
+    if (_msgController.text.trim().isEmpty) return;
+    final data = {
+      "type": "chat",
+      "name": myName ?? "ناشناس",
+      "message": _msgController.text.trim(),
+    };
+    channel!.sink.add(jsonEncode(data));
+    _msgController.clear();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _notifyServerOffline();
+    channel?.sink.close();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _notifyServerOffline();
-    } else if (state == AppLifecycleState.resumed) {
-      _notifyServerOnline();
-    }
-  }
-
-  _initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _userId = prefs.getString('user_id');
-    
-    if (_userId != null) {
-      await _notifyServerOnline();
-      await _loadImages();
-      _startHeartbeat();
-      
-      // تنظیم callbacks برای نوتیفیکیشن
-      NotificationService.setCallbacks(
-        newImageCallback: (data) {
-          _refreshImages();
-        },
-        forceLogoutCallback: () {
-          _logout();
-        },
-      );
-    }
-    
-    setState(() => _isLoading = false);
-  }
-
-  _loadImages() async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://178.63.171.244:8000/pending-images/$_userId'),
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() => _images = data['pending_images'] ?? []);
-      }
-    } catch (e) {
-      print('Error loading images: $e');
-    }
-  }
-
-  _notifyServerOnline() async {
-    if (_userId != null) {
-      try {
-        final fcmToken = await NotificationService.getFcmToken();
-        await http.post(
-          Uri.parse('http://178.63.171.244:8000/login'),
-          body: {
-            'user_id': _userId!,
-            'fcm_token': fcmToken ?? 'unknown',
-          },
-        );
-      } catch (e) {
-        print('Error notifying online: $e');
-      }
-    }
-  }
-
-  _notifyServerOffline() async {
-    if (_userId != null) {
-      try {
-        await http.post(
-          Uri.parse('http://178.63.171.244:8000/logout'),
-          body: {'user_id': _userId!},
-        );
-      } catch (e) {
-        print('Error notifying offline: $e');
-      }
-    }
-  }
-
-  _startHeartbeat() {
-    Future.delayed(Duration(seconds: 30), () {
-      if (_userId != null && mounted) {
-        http.post(
-          Uri.parse('http://178.63.171.244:8000/heartbeat'),
-          body: {'user_id': _userId!},
-        );
-        _startHeartbeat();
-      }
-    });
-  }
-
-  _logout() async {
-    await _notifyServerOffline();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => LoginPage()),
-      (route) => false,
-    );
-  }
-
-  _refreshImages() async {
-    setState(() => _isLoading = true);
-    await _loadImages();
-    setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Photo Alert'),
-        actions: [
-          IconButton(icon: Icon(Icons.refresh), onPressed: _refreshImages),
-          IconButton(icon: Icon(Icons.logout), onPressed: _logout),
+      appBar: AppBar(title: const Text("نقشه و چت زنده")),
+      body: Column(
+        children: [
+          if (myName == null) ...[
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "نام خود را وارد کنید",
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: _startApp,
+              child: const Text("شروع"),
+            ),
+          ] else ...[
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        center: LatLng(32.0, 53.0),
+                        zoom: 6,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          subdomains: const ['a', 'b', 'c'],
+                        ),
+                        MarkerLayer(
+                          markers: userLocations.entries.map((entry) {
+                            final color =
+                                userColors[entry.key] ?? Colors.red;
+                            return Marker(
+                              width: 40,
+                              height: 40,
+                              point: entry.value,
+                              builder: (ctx) => Icon(
+                                Icons.location_on,
+                                color: color,
+                                size: 30,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        Text("کاربران آنلاین",
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: onlineUsers.length,
+                            itemBuilder: (context, index) {
+                              final name = onlineUsers[index];
+                              final color =
+                                  userColors[name] ?? Colors.grey;
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: color,
+                                  child: Text(name[0]),
+                                ),
+                                title: Text(name),
+                              );
+                            },
+                          ),
+                        ),
+                        const Divider(),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) =>
+                                ListTile(title: Text(messages[index])),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _msgController,
+                                  decoration: const InputDecoration(
+                                    hintText: "پیام خود را بنویسید...",
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.send),
+                                onPressed: _sendMessage,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ]
         ],
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _images.isEmpty
-              ? Center(child: Text('تصویری موجود نیست'))
-              : ListView.builder(
-                  itemCount: _images.length,
-                  itemBuilder: (context, index) {
-                    final image = _images[index];
-                    return Card(
-                      margin: EdgeInsets.all(8),
-                      child: Column(
-                        children: [
-                          Image.network(image['image_url'], height: 200, width: double.infinity, fit: BoxFit.cover),
-                          ListTile(
-                            title: Text(image['filename']),
-                            subtitle: Text(_formatTime(image['timestamp'])),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
     );
-  }
-
-  String _formatTime(String timestamp) {
-    try {
-      final date = DateTime.parse(timestamp);
-      return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return '--:--';
-    }
   }
 }
