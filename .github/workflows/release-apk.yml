@@ -26,13 +26,13 @@ jobs:
         run: ls -R
 
       - name: Build release APK
-        run: cd alert/android && ./gradlew assembleRelease
+        run: cd android && ./gradlew assembleRelease
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: alert/android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
 
   release:
     needs: build
