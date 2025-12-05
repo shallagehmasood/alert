@@ -23,13 +23,13 @@ jobs:
         uses: gradle/gradle-build-action@v2
 
       - name: Build release APK
-        run: ./gradlew assembleRelease
+        run: cd alert/android && ./gradlew assembleRelease
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: alert/android/app/build/outputs/apk/release/app-release.apk
 
   release:
     needs: build
@@ -45,8 +45,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app-release.apk
-          tag_name: v1.0.0   # می‌توانی نسخه دلخواه بزنی یا از متغیر استفاده کنی
-          name: "Android Release v1.0.0"
-          body: "نسخه جدید اپلیکیشن اندروید آماده دانلود است 🚀"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
