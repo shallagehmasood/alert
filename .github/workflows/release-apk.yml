@@ -2,8 +2,8 @@ name: Android Release Build
 
 on:
   push:
-    branches: [ main ]   # هر بار که روی main پوش کنی اجرا میشه
-  workflow_dispatch:     # امکان اجرای دستی
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,6 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '17'
+          distribution: 'temurin'
 
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
@@ -35,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download APK artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: app-release
           path: .
