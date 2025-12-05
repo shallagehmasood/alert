@@ -45,5 +45,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app-release.apk
+          tag_name: v1.0.0   # می‌توانی نسخه دلخواه بزنی یا از متغیر استفاده کنی
+          name: "Android Release v1.0.0"
+          body: "نسخه جدید اپلیکیشن اندروید آماده دانلود است 🚀"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
